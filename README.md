@@ -4,4 +4,4 @@ PPGA Script is a scripting language that transpiles to Lua. It provides a more f
 See [tour.ppga](tour.ppga) for a quick tour.
 
 ## Syntax Highlighting
-There's a syntax highlighting plugin for vscode. It maybe installed from the [vscode-ppga](vscode-ppga/README.md) directory.
+There's a syntax highlighting plugin for vscode. It maybe installed from the [vscode-ppga](vscode-ppga) directory.
