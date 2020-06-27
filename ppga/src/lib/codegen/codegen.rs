@@ -462,6 +462,10 @@ local function __PPGA_INTERNAL_HANDLE_ERR(cb, ...)
     end
     return (ok), (err)
 end
+local function __PPGA_INTERNAL_DFLT_ERR_CB(err)
+    (function(_)return end)(err)
+    return nil, err
+end
 -- END PPGA STD SYMBOLS
 
 
@@ -471,10 +475,7 @@ end
 
 local ok = nil
 do
-    local _ok_L4S76, _err_L4S76 = __PPGA_INTERNAL_HANDLE_ERR(function (err)
-            util:error("WAYTOODANK something broke")
-            return (err)
-        end, some_api_request())
+    local _ok_L4S76, _err_L4S76 = __PPGA_INTERNAL_HANDLE_ERR(__PPGA_INTERNAL_DFLT_ERR_CB, some_api_request())
     if _err_L4S76 ~= nil then
         return (_err_L4S76)
     end

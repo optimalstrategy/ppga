@@ -53,7 +53,7 @@ pub fn main() -> Result<(), BoxedError> {
                 .long("--err-msg")
                 .takes_value(true)
                 .default_value("$err")
-                .help("The default error message returned by implicit `err` blocks. If this message is `$err`, 
+                .help("The default error message returned by implicit `err` blocks. If this message is `$err`, \
                       the value of the err variable will be returned instead."),
         )
         .arg(
