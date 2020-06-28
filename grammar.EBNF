@@ -1,25 +1,29 @@
-program   ::= statement* EOF ;
+program    ::= statement* EOF ;
 
-statement ::= var_decl 
-            | fn_decl 
-            | block 
-            | if_stmt
-            | for_stmt
-            | while_stmt
-            | return
-            | exprStmt 
-            | "break" 
-            ; (* | "continue" *)
+statement  ::= var_decl 
+             | fn_decl 
+             | block 
+             | if_stmt
+             | for_stmt
+             | while_stmt
+             | switch_stmt
+             | return
+             | exprStmt 
+             | "break" 
+             ; (* | "continue" *)
 
-block      ::=  "{" statement* "}" 
-             ;
-fn_decl    ::= "fn" IDENTIFIER "(" params? ")" body ;
-var_decl   ::= ( "let" | "global" ) ( IDENTIFIER )+ ( "=" expression )? ( "?" )? ";" ;
-if_stmt    ::= "if" expression block ( else ( if_stmt | block ) )?;
-for_stmt   ::= ( "for" | "fori" ) IDENTIFIER ("," IDENTIFIER )* "in" ( range | arguments ) block ;
-while_stmt ::= "while" expression block;
-return     ::= "return" arguments? ;
-expr_stmt  ::= assignment ";" ;
+block       ::=  "{" statement* "}" ;
+fn_decl     ::= "fn" IDENTIFIER "(" params? ")" body ;
+var_decl    ::= ( "let" | "global" ) ( IDENTIFIER )+ ( "=" expression )? ( "?" )? ";" ;
+if_stmt     ::= "if" expression block ( else ( if_stmt | block ) )?;
+for_stmt    ::= ( "for" | "fori" ) IDENTIFIER ("," IDENTIFIER )* "in" ( range | arguments ) block ;
+while_stmt  ::= "while" expression block;
+return      ::= "return" arguments? ;
+switch_stmt ::= "match" expression ( "as" IDENTIFIER )? "{" ( arm )* ( "," rest_arm )? "}" ;
+expr_stmt   ::= assignment ";" ;
+
+arm         ::=  expression "=>" block ;
+rest_arm    ::=  "_" "=>" block ;
 
 assignment      ::= assignable ( "," assignable )* ( "+=" | "-=" | "*=" | "/=", "**=" | "=" ) expression
                   | expression
@@ -61,7 +65,7 @@ primary        ::= "nil"
 
 assignable ::= IDENTIFIER | get | get_item  ;
 (* Allow an optional trailing comma *)
-params     ::= IDENTIFIER ( "?" )? ( "," IDENTIFIER ( "?" )? )* ( "," )? ;  
+params     ::= IDENTIFIER ( "," IDENTIFIER ( "?" )? )* ( "," )? ;  
 arguments  ::= expression ( "," expression)* ( "," )? ;
 pairs      ::= pair ("," pair )* ( "," )? ;
 pair       ::= expr "=" expr ;

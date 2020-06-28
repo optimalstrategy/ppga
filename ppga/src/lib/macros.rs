@@ -26,6 +26,10 @@ macro_rules! make_return {
         use $crate::frontend::ast::*;
         Stmt::new(StmtKind::Return(vec![$value]))
     }};
+    ($value:expr, $( $rest:expr ),* ) => {{
+        use $crate::frontend::ast::*;
+        Stmt::new(StmtKind::Return(vec![$value, $( $rest ),* ]))
+    }};
 }
 
 #[macro_export]

@@ -226,7 +226,10 @@ impl<'a> Parser<'a> {
                     self,
                     StmtKind::If(
                         make_binary!(alloc => err_var.clone(), "!=", make_literal!("nil")),
-                        Ptr::new(make_block!(false, make_return!(err_var))),
+                        Ptr::new(make_block!(
+                            false,
+                            make_return!(make_literal!("nil"), err_var)
+                        )),
                         None
                     )
                 ),

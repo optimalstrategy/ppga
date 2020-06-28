@@ -16,7 +16,7 @@ let i = true != false and 3 < 4 or 5 >= 6 or 3 <= 7 and 10 > 2;
 
 // Create a global function
 global fn h() { }
-    
+
 
 // A block.
 {
@@ -40,7 +40,7 @@ fn f(x) {
     global z = 5;
 
     let arr = [1, 2, 3];
-    if not x { 
+    if not x {
         // returns the array arr as an object
         // the result is an array: [x, arr]
         return x, arr;  // => return (x), (arr)
@@ -57,7 +57,7 @@ print(f"f returned: {x}, {arr}");
 
 // Create and call a closure
 let g = fn (y, f) {
-    // The ?? operator returns the default value on the right side 
+    // The ?? operator returns the default value on the right side
     // if the value on the left side is `nil.`
     f = f ?? (fn(x) => x);
     print(f(y));
@@ -68,7 +68,7 @@ g(12, fn(x) => x * x); // 144
 
 for i in range(1, 10) {
     let fib = [0, 1];
-    // Code inside `lua` blocks is de-indented once 
+    // Code inside `lua` blocks is de-indented once
     // and then directly pasted into the resulting lua file.
     lua {
         for j = 2, i do
@@ -82,7 +82,7 @@ let container = [1, 2, 3];
 container["string"] = "hello";
 
 // Table iteration, uses pairs
-for key, value in container { 
+for key, value in container {
     print(key, value);
 }
 
@@ -95,7 +95,7 @@ fori idx, value in container {
 // where either of the elements, but not both, is nil.
 let fail = false;
 fn may_fail() {
-    if fail { 
+    if fail {
         return nil, "error";
     }
     return "success", nil;
@@ -111,15 +111,18 @@ fn recovery() {
 
 fn main() {
     // The ? operator simplifies Go-style error hanlding.
+    // By default, this will make the whole program crash if an error is encountered.
     let ok = may_fail()?;
 
-    // The line above will expand into a piece of code similar to the following:
+    // The line above will expand into a piece of code similar to the code below. 
+    // The default error callback is what makes the script crash.
     //
     // let ok = nil
-    // { 
+    // {
     //     let _ok, _err = __default_error_handler(__default_error_callback, may_fail());
     //     if _err != nil {
-    //          return _err;
+    //          return nil, _err;
+
     //     }
     //     ok = _ok
     // }
@@ -132,17 +135,17 @@ fn main() {
         return ...recovery();
     }?;
 
-    // The statement below looks almost exactly as the previous `?` example, 
+    // The statement below looks almost exactly as the previous `?` example,
     // except that the error handler is custom:
     //
     // let ok = nil
-    // { 
-    //     let _ok, _err = __default_error_handler(fn (err) { 
+    // {
+    //     let _ok, _err = __default_error_handler(fn (err) {
     //            print(f"An error has occurred: {err}");
     //            return ...recovery();
     //       }, another_fail());
     //     if _err != nil {
-    //          return _err;
+    //          return nil, _err;
     //     }
     //     ok = _ok
     // }

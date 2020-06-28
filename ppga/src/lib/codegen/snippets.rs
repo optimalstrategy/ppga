@@ -19,33 +19,25 @@ pub const fn handle_err_definition() -> &'static str {
 end"#
 }
 
-pub fn default_err_callback_definition(logger: &str, msg: &str) -> String {
-    format!(
-        r#"local function __PPGA_INTERNAL_DFLT_ERR_CB(err)
-    {}(err)
-    return nil, {}
-end"#,
-        logger,
-        match msg {
-            "$err" => "err".to_owned(),
-            _ => format!("\"{}\"", msg),
-        }
-    )
+pub fn default_err_callback_definition() -> &'static str {
+    r#"local function __PPGA_INTERNAL_DFLT_ERR_CB(err)
+    error(err)
+end"#
 }
 
 #[derive(Debug, Clone)]
 pub struct Snippets {
     default_op_definition: &'static str,
     handle_err_definition: &'static str,
-    default_err_callback_definition: String,
+    default_err_callback_definition: &'static str,
 }
 
 impl Snippets {
-    pub fn new(logger: &str, err_message: &str) -> Self {
+    pub fn new() -> Self {
         Self {
             default_op_definition: default_op_definition(),
             handle_err_definition: handle_err_definition(),
-            default_err_callback_definition: default_err_callback_definition(logger, err_message),
+            default_err_callback_definition: default_err_callback_definition(),
         }
     }
 

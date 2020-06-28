@@ -14,12 +14,6 @@ pub struct PPGAConfig {
     /// Specifies whether to include PPGA's standard library symbols.
     /// They are required for some of PPGA's features to work (for example, the `??` and `?` operators).
     pub include_ppga_std: bool,
-    /// The default error message returned by the implicit err block.
-    /// If the message is `$err`, the `err` variable will be returned.
-    pub err_block_default_message: String,
-    /// The function used to log the errors handled by the implicit err block.
-    /// Defaults to a no-op.
-    pub err_block_logger: String,
 }
 
 impl Default for PPGAConfig {
@@ -33,8 +27,6 @@ impl Default for PPGAConfig {
             emit_comments: false,
             indent_size: DEFAULT_INDENT_SIZE,
             include_ppga_std: true,
-            err_block_default_message: String::from("$err"),
-            err_block_logger: String::from("(function(_)return end)"),
         }
     }
 }
@@ -44,13 +36,6 @@ impl PPGAConfig {
     pub fn disable_std(self) -> Self {
         Self {
             include_ppga_std: false,
-            ..self
-        }
-    }
-
-    pub fn custom_err_message(self, msg: String) -> Self {
-        Self {
-            err_block_default_message: msg,
             ..self
         }
     }

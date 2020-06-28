@@ -38,10 +38,7 @@ use crate::{codegen::code_builder::*, config::PPGAConfig, frontend::ast::*};
 pub fn emit_lua<'a>(ast: &AST<'a>) -> String {
     let mut code = CodeBuilder::new(ast.config.indent_size);
     if ast.config.include_ppga_std {
-        let snippets = Snippets::new(
-            &ast.config.err_block_logger,
-            &ast.config.err_block_default_message,
-        );
+        let snippets = Snippets::new();
         code.push("-- PPGA STD SYMBOLS");
         for snippet in snippets.iter() {
             code.push(snippet.to_owned());
@@ -463,8 +460,7 @@ local function __PPGA_INTERNAL_HANDLE_ERR(cb, ...)
     return (ok), (err)
 end
 local function __PPGA_INTERNAL_DFLT_ERR_CB(err)
-    (function(_)return end)(err)
-    return nil, err
+    error(err)
 end
 -- END PPGA STD SYMBOLS
 
@@ -477,7 +473,7 @@ local ok = nil
 do
     local _ok_L4S76, _err_L4S76 = __PPGA_INTERNAL_HANDLE_ERR(__PPGA_INTERNAL_DFLT_ERR_CB, some_api_request())
     if _err_L4S76 ~= nil then
-        return (_err_L4S76)
+        return (nil), (_err_L4S76)
     end
     ok = _ok_L4S76
 end
@@ -489,7 +485,7 @@ do
             return ("handled"), (nil)
         end, some_api_request())
     if _err_L7S159 ~= nil then
-        return (_err_L7S159)
+        return (nil), (_err_L7S159)
     end
     ok2 = _ok_L7S159
 end

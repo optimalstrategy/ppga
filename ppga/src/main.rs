@@ -48,21 +48,6 @@ pub fn main() -> Result<(), BoxedError> {
                 .takes_value(true)
                 .help("The indentation in the generated lua code."),
         )
-        .arg(
-            Arg::with_name("err-msg")
-                .long("--err-msg")
-                .takes_value(true)
-                .default_value("$err")
-                .help("The default error message returned by implicit `err` blocks. If this message is `$err`, \
-                      the value of the err variable will be returned instead."),
-        )
-        .arg(
-            Arg::with_name("err-logger")
-                .long("-err-logger")
-                .takes_value(true)
-                .default_value("(function(_)return end)")
-                .help("The function used report the errors handled by implicit `err` blocks. Defaults to a no-op."),
-        )
         .get_matches();
 
     let input = args.value_of("input").unwrap();
@@ -76,8 +61,6 @@ pub fn main() -> Result<(), BoxedError> {
             Some(i) => i.parse()?,
             None => DEFAULT_INDENT_SIZE,
         },
-        err_block_default_message: args.value_of("err-msg").unwrap().to_owned(),
-        err_block_logger: args.value_of("err-logger").unwrap().to_owned(),
     };
 
     let meta = std::fs::metadata(input)
