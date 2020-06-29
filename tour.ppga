@@ -20,7 +20,7 @@ global fn h() { }
 
 // A block.
 {
-    // Arrays use python-style syntax are initialize from 0.
+    // Arrays use python-style syntax and are initialized from 0.
     let arr = [1, 2, 3];
 
     // Dicts are similar to lua but don't require the `[]`
@@ -41,12 +41,12 @@ fn f(x) {
 
     let arr = [1, 2, 3];
     if not x {
-        // returns the array arr as an object
+        // returns the array `arr` as an object
         // the result is an array: [x, arr]
         return x, arr;  // => return (x), (arr)
     }
 
-    // unpacks the array arr as a sequence of its elements
+    // unpacks the array `arr` as a sequence of its elements
     // the result is an array: [x, 1, 2, 3]
     return x, ...arr;  // => return x, arr
 }
@@ -54,12 +54,13 @@ fn f(x) {
 let x, arr = f(35);
 print(f"f returned: {x}, {arr}");
 
+// if statements may be chained like this:
 if x < 20 {
     print(f"x is < 20: {x}");
 } else if x < 30 {
     print(f"x is < 30: {x}");
 } else {
-    print(f"x is > 30: {x}");
+    print(f"x is >= 30: {x}");
 }
 
 // A match statement is a handy replacement for a bunch of chained if statements
@@ -82,7 +83,7 @@ match x + 29 as y {
     (fn (z) => z > 60)(y) => {
         print(f"y is > 60: {y}");
     }
-    // The wildcard `_` branch transpiles to `else... end`
+    // The wildcard `_` branch transpiles to `else ... end`
     _ => {
         print("Everything else goes here.");
     }
@@ -92,7 +93,7 @@ match x + 29 as y {
 // Create and call a closure
 let g = fn (y, f) {
     // The ?? operator returns the default value on the right side
-    // if the value on the left side is `nil.`
+    // if the value on the left side is `nil`.
     f = f ?? (fn(x) => x);
     print(f(y));
 };
@@ -103,7 +104,7 @@ g(12, fn(x) => x * x); // 144
 for i in range(1, 10) {
     let fib = [0, 1];
     // Code inside `lua` blocks is de-indented once
-    // and then directly pasted into the resulting lua file.
+    // and directly pasted into the resulting lua file.
     lua {
         for j = 2, i do
             fib[j] = fib[j - 2] + fib[j - 1]
@@ -163,7 +164,7 @@ fn main() {
     print(f"First result: {ok}");
 
     // Sometimes it is desirable to log or try to recover from, the error.
-    // An err block may be used for this purpose
+    // An err block may be used for this purpose:
     let ok = another_fail() err {
         print(f"An error has occurred: {err}");
         return ...recovery();
