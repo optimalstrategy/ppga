@@ -1,6 +1,6 @@
 [package]
 name = "ppga"
-version = "0.5.0"
+version = "0.6.0"
 authors = ["OptimalStrategy <17456182+OptimalStrategy@users.noreply.github.com>"]
 edition = "2018"
 
