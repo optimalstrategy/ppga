@@ -54,6 +54,40 @@ fn f(x) {
 let x, arr = f(35);
 print(f"f returned: {x}, {arr}");
 
+if x < 20 {
+    print(f"x is < 20: {x}");
+} else if x < 30 {
+    print(f"x is < 30: {x}");
+} else {
+    print(f"x is > 30: {x}");
+}
+
+// A match statement is a handy replacement for a bunch of chained if statements
+match x + 29 as y {
+    // Checks that invole the bound variable (y in this case)
+    // transpile to "value" conditions: if y < 60 then ... end
+    y < 60 => {
+        print(f"y is < 60: {y}");
+    }
+    // Checks that do not mention the bound variable
+    // transpile to "comparison" conditions: if y == 60 then ... end
+    60 => {
+        print(f"y is {y}");
+    }
+    // A pattern maybe any expression ...
+    y ** 0.5 == 8 => {
+        print(f"sqrt(y) is 8: {y}");
+    }
+    // ... including attribute accesses and function calls
+    (fn (z) => z > 60)(y) => {
+        print(f"y is > 60: {y}");
+    }
+    // The wildcard `_` branch transpiles to `else... end`
+    _ => {
+        print("Everything else goes here.");
+    }
+}
+
 
 // Create and call a closure
 let g = fn (y, f) {
