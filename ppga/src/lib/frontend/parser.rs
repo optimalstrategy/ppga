@@ -368,7 +368,6 @@ impl<'a> Parser<'a> {
                 )
             };
 
-            self.consume(TokenKind::FatArrow, "Expected a `=>` after the pattern.")?;
             self.consume(
                 TokenKind::LeftBrace,
                 "Expected a `{` after the arrow value.",
