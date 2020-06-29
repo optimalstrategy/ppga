@@ -125,6 +125,14 @@ pub enum TokenKind<'a> {
     #[token("break")]
     Break,
 
+    /// The `as` keyword.
+    #[token("as")]
+    As,
+
+    /// The `match` keyword.
+    #[token("match")]
+    Match,
+
     // XXX: should we implement continue using gotos?
     // #[token("continue")]
     // Continue,

@@ -24,6 +24,13 @@ impl ParseError {
             message: message.into(),
         }
     }
+
+    pub fn with_linespan<S: Into<String>>(span: LineSpan, message: S) -> ParseError {
+        Self {
+            span,
+            message: message.into(),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]

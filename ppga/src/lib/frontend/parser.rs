@@ -100,6 +100,8 @@ impl<'a> Parser<'a> {
             ));
         } else if self.r#match(TokenKind::If) {
             self.if_statement()
+        } else if self.r#match(TokenKind::Match) {
+            self.match_statement()
         } else if self.r#match(TokenKind::For) {
             self.for_statement(false)
         } else if self.r#match(TokenKind::ForI) {
@@ -319,6 +321,184 @@ impl<'a> Parser<'a> {
             self,
             StmtKind::If(Ptr::new(condition), Ptr::new(then), r#else)
         ))
+    }
+
+    fn match_statement(&mut self) -> StmtRes<'a> {
+        let keyword = self.previous().clone();
+        let value = self.expression()?;
+        let bound_var = if self.r#match(TokenKind::As) {
+            self.consume_identifier("Expected a bound variable name after the `as`.")?;
+            make_var!(self.previous().lexeme)
+        } else if let ExprKind::Variable(name) = value.kind {
+            make_var!(name)
+        } else {
+            owned_var!(format!("_mbound_L{}S{}", keyword.line, keyword.span.start))
+        };
+
+        self.consume(
+            TokenKind::LeftBrace,
+            "Expected a `{` after the match value.",
+        )?;
+
+        let mut arms = vec![];
+        let mut any_arm = None;
+        let mut any_arm_last = false;
+        let mut any_arm_span = None;
+
+        while !self.check(&TokenKind::RightBrace) {
+            any_arm_last = false;
+            let pattern = self.expression()?;
+
+            let kind = if let ExprKind::Variable("_") = pattern.kind {
+                let span = self.previous().span.clone();
+                any_arm_span = Some(LineSpan {
+                    line: self.previous().line,
+                    start: span.start,
+                    end: span.end,
+                });
+                MatchPatKind::Else
+            } else {
+                self.infer_pattern_kind(
+                    match bound_var.kind {
+                        ExprKind::Variable(name) => name,
+                        ExprKind::GeneratedVariable(ref name) => &name[..],
+                        _ => unreachable!(),
+                    },
+                    &pattern,
+                )
+            };
+
+            self.consume(TokenKind::FatArrow, "Expected a `=>` after the pattern.")?;
+            self.consume(
+                TokenKind::LeftBrace,
+                "Expected a `{` after the arrow value.",
+            )?;
+            let body = self.block(false)?;
+            match kind {
+                MatchPatKind::Value => {
+                    arms.push(stmt!(
+                        self,
+                        StmtKind::If(Ptr::new(pattern), Ptr::new(body), None)
+                    ));
+                }
+                MatchPatKind::Comparison => arms.push(stmt!(
+                    self,
+                    StmtKind::If(
+                        make_binary!( alloc =>
+                            pattern,
+                            "==",
+                            bound_var.clone()
+                        ),
+                        Ptr::new(body),
+                        None
+                    )
+                )),
+                MatchPatKind::Else if any_arm.is_some() => {
+                    return Err(ParseError::with_linespan(
+                        any_arm_span.unwrap(),
+                        "Only one wildcard arm `_` may be present in a single match statement.",
+                    ));
+                }
+                MatchPatKind::Else => {
+                    any_arm_last = true;
+                    any_arm = Some((pattern, body));
+                }
+            }
+        }
+
+        self.consume(
+            TokenKind::RightBrace,
+            "Expected a `}` after the match statement.",
+        )?;
+
+        if any_arm.is_some() && !any_arm_last {
+            let span = any_arm_span.unwrap();
+            return Err(ParseError::with_linespan(
+                span,
+                "The wildcard arm `_` must be the last arm.",
+            ));
+        }
+
+        let mut stmt = None;
+        for mut arm in arms.into_iter().rev() {
+            if any_arm.is_some() {
+                stmt = any_arm.take().map(|(_, stmt)| stmt);
+            }
+            match stmt {
+                Some(value) => {
+                    match arm.kind {
+                        StmtKind::If(_, _, ref mut r#else) => *r#else = Some(Ptr::new(value)),
+                        _ => unreachable!(),
+                    };
+                    stmt = Some(arm);
+                }
+                None => {
+                    stmt = Some(arm);
+                }
+            }
+        }
+
+        if let Some(stmt) = stmt {
+            let decl = stmt!(
+                self,
+                StmtKind::VarDecl(
+                    VarKind::Local,
+                    vec![bound_var.into_var_name().unwrap()],
+                    Some(Ptr::new(value))
+                )
+            );
+            Ok(make_block!(true, decl, stmt))
+        } else {
+            Err(ParseError::new(
+                keyword.line,
+                keyword.span,
+                "A match statement must have at least one arm.",
+            ))
+        }
+    }
+
+    fn infer_pattern_kind(&self, var: &str, expr: &Expr<'a>) -> MatchPatKind {
+        match &expr.kind {
+            ExprKind::Variable(name) if *name == var => MatchPatKind::Value,
+            ExprKind::GeneratedVariable(ref name) if name == var => MatchPatKind::Value,
+            ExprKind::GetItem(obj, key) => {
+                if self.infer_pattern_kind(var, &obj).is_value()
+                    || self.infer_pattern_kind(var, &key).is_value()
+                {
+                    MatchPatKind::Value
+                } else {
+                    MatchPatKind::Comparison
+                }
+            }
+            ExprKind::Call(ref callee, ref args) => {
+                if self.infer_pattern_kind(var, &callee).is_value() {
+                    return MatchPatKind::Value;
+                }
+                for arg in args {
+                    if self.infer_pattern_kind(var, &arg).is_value() {
+                        return MatchPatKind::Value;
+                    }
+                }
+                MatchPatKind::Comparison
+            }
+            ExprKind::Unary(_, obj) | ExprKind::Grouping(obj) => {
+                if self.infer_pattern_kind(var, &obj).is_value() {
+                    MatchPatKind::Value
+                } else {
+                    MatchPatKind::Comparison
+                }
+            }
+            ExprKind::Binary(left, _, right) => {
+                if self.infer_pattern_kind(var, &left).is_value()
+                    || self.infer_pattern_kind(var, &right).is_value()
+                {
+                    MatchPatKind::Value
+                } else {
+                    MatchPatKind::Comparison
+                }
+            }
+            _ => MatchPatKind::Comparison,
+        }
     }
 
     fn for_statement(&mut self, is_fori: bool) -> StmtRes<'a> {

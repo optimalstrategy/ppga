@@ -6,7 +6,7 @@ statement  ::= var_decl
              | if_stmt
              | for_stmt
              | while_stmt
-             | switch_stmt
+             | match_stmt
              | return
              | exprStmt 
              | "break" 
@@ -19,7 +19,7 @@ if_stmt     ::= "if" expression block ( else ( if_stmt | block ) )?;
 for_stmt    ::= ( "for" | "fori" ) IDENTIFIER ("," IDENTIFIER )* "in" ( range | arguments ) block ;
 while_stmt  ::= "while" expression block;
 return      ::= "return" arguments? ;
-switch_stmt ::= "match" expression ( "as" IDENTIFIER )? "{" ( arm )* ( "," rest_arm )? "}" ;
+match_stmt  ::= "match" expression ( "as" IDENTIFIER )? "{" ( arm )* ( "," rest_arm )? "}" ;
 expr_stmt   ::= assignment ";" ;
 
 arm         ::=  expression "=>" block ;

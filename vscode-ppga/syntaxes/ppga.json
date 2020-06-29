@@ -315,7 +315,7 @@
 		},
 		"keyword": {
 			"name": "keyword.control.ppga",
-			"match": "\\b(break|else|for|if|for|return|while|let|global|in|lua)\\b"
+			"match": "\\b(break|else|for|if|for|return|while|let|global|in|lua|as|match)\\b"
 		},
 		"table-function": {
 			"name": "meta.function.ppga",

@@ -92,7 +92,8 @@ pub fn stmt_to_lua<'a>(stmt: &Stmt<'a>, config: &PPGAConfig, depth: usize) -> St
                     }
                     code.append(format!(
                         "else{}",
-                        stmt_to_lua(r#else.as_ref().unwrap(), config, depth)
+                        // TODO: get rid of this trim hack. Something is wrong with the depth logic here.
+                        stmt_to_lua(r#else.as_ref().unwrap(), config, depth).trim_start()
                     ));
                 }
                 Some(_) => {

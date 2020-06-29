@@ -62,6 +62,23 @@ pub enum VarKind {
     Global,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum MatchPatKind {
+    // Compare the bound variable to the value of the pattern
+    Comparison,
+    // Use the value of the pattern as the condition
+    Value,
+    // The final else block
+    Else,
+}
+
+impl MatchPatKind {
+    #[inline(always)]
+    pub fn is_value(&self) -> bool {
+        self == &Self::Value
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum ForCondition<'a> {
     Range(Ptr<Range>),
@@ -124,6 +141,14 @@ impl<'a> Expr<'a> {
         Self {
             kind,
             comments: vec![],
+        }
+    }
+
+    pub fn into_var_name(&self) -> Option<VarName<'a>> {
+        match &self.kind {
+            ExprKind::Variable(name) => Some(VarName::Borrowed(name)),
+            ExprKind::GeneratedVariable(name) => Some(VarName::Owned(name.clone())),
+            _ => None,
         }
     }
 }
