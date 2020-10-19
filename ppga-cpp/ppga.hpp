@@ -19,6 +19,11 @@ namespace constants {
     static size_t DEFAULT_PPGA_INDENT_SIZE = 4;
 }
 
+struct PPGAConfig {
+    size_t indent_size = constants::DEFAULT_PPGA_INDENT_SIZE;
+    bool include_ppga_std = true;
+};
+
 namespace lexer {
 struct Span {
     size_t start;
@@ -796,16 +801,131 @@ const std::unordered_map<std::string_view, TokenKind> Token::KEYWORDS = {
 };
 }
 
-namespace parser {
-class Parser {
+namespace ast {
+//template<typename... Types>
+//class Visitor;
+//
+//template<typename T>
+//class Visitor<T> {
+//public:
+//    virtual void visit(T& visitable) = 0;
+//};
+//
+//template<typename T, typename... Types>
+//class Visitor<T, Types...> : public Visitor<Types...> {
+//public:
+//    using Visitor<Types...>::visit;
+//
+//    virtual void visit(T& visitable) = 0;
+//};
+//
+//template<typename... T>
+//class Visitable {
+//public:
+//    virtual void accept(Visitor<T...>& visitor) = 0;
+//};
+//
+//template<typename Derived, typename... T>
+//class VisitableImpl : public Visitable<T...> {
+//public:
+//    void accept(Visitor<T...>& visitor) override {
+//        visitor.visit(static_cast<Derived&>(*this));
+//    }
+//};
+//
+//struct Expr: public VisitableImpl<Expr> {};
+//struct Stmt: public VisitableImpl<Stmt, Expr> {};
 
+template<class T>
+class Visitor;
+
+template<class T>
+struct Node {
+    virtual T accept(Visitor<T>& visitor) = 0;
+};
+
+template<class T>
+struct Stmt : public Node<T> {};
+
+template<class T>
+struct Expr : public Node<T> {};
+
+template<class T>
+struct ExprStmt : public Stmt<T> {
+    std::unique_ptr<Expr<T>> expr;
+};
+
+template<class T>
+struct If : public Stmt<T> {
+    std::unique_ptr<Expr<T>> condition;
+    std::unique_ptr<Stmt<T>> then;
+    std::optional<std::unique_ptr<Expr<T>>> otherwise;
+};
+
+template<class T>
+struct Literal : public Expr<T> {
+    std::string_view value;
+    bool is_str;
+};
+
+template<class T>
+struct AST  {
+    PPGAConfig config;
+    std::vector<Stmt<T>> statements;
+};
+
+template<class T>
+class Visitor {
+public:
+    virtual T visit(AST<T>& ast)  = 0;
+    virtual T visit(Expr<T>& expr) { expr.accept(*this); }
+    virtual T visit(Stmt<T>& stmt) { stmt.accept(*this); }
+    virtual T visit(If<T>& stmt) = 0;
+    virtual T visit(Literal<T>& lit) = 0;
+};
+
+class ASTPrinter : public Visitor<void> {
+    size_t depth = 0;
+public:
+    using Visitor<void>::visit;
+
+    void visit(AST<void>& ast) override {
+        for (auto& stmt : ast.statements) {
+            visit(stmt);
+        }
+    }
+
+    void visit(If<void>& stmt) override {
+        std::cout << "if\n";
+        visit(*stmt.condition);
+        visit(*stmt.then);
+        if (stmt.otherwise.has_value()) {
+            visit(*stmt.otherwise.value());
+        }
+    }
+
+    void visit(Literal<void>& ) override {
+        std::cout << "lit\n";
+    }
+
+    void indent() const noexcept {
+        for (size_t i = 0; i  < depth; ++i) { std::cout << " "; }
+    }
 };
 }
 
-struct PPGAConfig {
-    size_t indent_size = constants::DEFAULT_PPGA_INDENT_SIZE;
-    bool include_ppga_std = true;
+namespace parser {
+class Parser {
+    std::vector<lexer::Token> tokens;
+    size_t current;
+    ppga::PPGAConfig config;
+
+public:
+    Parser(std::vector<lexer::Token>&& tokens, PPGAConfig config)
+    : tokens(std::move(tokens)), current(0), config(config) {}
 };
+}
+
 
 std::string ppga_to_lua(const std::string& source, PPGAConfig ) {
     auto ex = ppga::error::ErrCtx{};
