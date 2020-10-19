@@ -802,124 +802,101 @@ const std::unordered_map<std::string_view, TokenKind> Token::KEYWORDS = {
 }
 
 namespace ast {
-template<class T>
-class Visitor;
+struct Visitor;
 
-template<class T>
 struct Node {
-    virtual T accept(Visitor<T>& visitor) = 0;
+    virtual void accept(Visitor& visitor) = 0;
 };
 
-template<class T>
-struct Stmt : public Node<T> {};
+struct Stmt : public Node {};
 
-template<class T>
-struct Expr : public Node<T> {};
+struct Expr : public Node {};
 
-template<class T>
 struct FunctionData {
     std::optional<std::string_view> name;
-    std::vector<Expr<T>> params;
-    std::unique_ptr<Stmt<T>> body;
+    std::vector<Expr> params;
+    std::unique_ptr<Stmt> body;
 };
 
-template<class T>
-struct Literal : public Expr<T> {
+struct Literal : public Expr {
     std::string_view value;
 };
 
-template<class T>
-struct Len : public Expr<T> {
-    std::unique_ptr<Expr<T>> expr;
+struct Len : public Expr {
+    std::unique_ptr<Expr> expr;
 };
 
-template<class T>
-struct LuaBlock : public Expr<T> {
+struct LuaBlock : public Expr {
     std::string_view contents;
 };
 
-template<class T>
-struct Variable : public Expr<T> {
+struct Variable : public Expr {
     std::string_view name;
 };
 
-template<class T>
-struct GeneratedVariable : public Expr<T> {
+struct GeneratedVariable : public Expr {
     std::string name;
 };
 
-template<class T>
-struct Param : public Expr<T> {
+struct Param : public Expr {
     std::string_view name;
 };
 
-template<class T>
-struct FString : public Expr<T> {
-     std::vector<Expr<T>> fragments;
+struct FString : public Expr {
+     std::vector<Expr> fragments;
 }
 
-template<class T>
-struct Get : public Expr<T> {
-    std::unique_ptr<Expr<T>> obj;
+struct Get : public Expr {
+    std::unique_ptr<Expr> obj;
     std::string_view attr;
     bool is_static;
 };
 
-template<class T>
-struct GetItem : public Expr<T> {
-    std::unique_ptr<Expr<T>> obj;
-    std::unique_ptr<Expr<T>> item;
+struct GetItem : public Expr {
+    std::unique_ptr<Expr> obj;
+    std::unique_ptr<Expr> item;
 };
 
-template<class T>
-struct Call : public Expr<T> {
-    std::unique_ptr<Expr<T>> callee;
-    std::vector<Expr<T>> args;
+struct Call : public Expr {
+    std::unique_ptr<Expr> callee;
+    std::vector<Expr> args;
 };
 
-template<class T>
-struct Unary : public Expr<T> {
+struct Unary : public Expr {
     std::string_view op;
-    std::unique_ptr<Expr<T>> operand;
+    std::unique_ptr<Expr> operand;
 };
 
-template<class T>
-struct Grouping : public Expr<T> {
-    std::unique_ptr<Expr<T>> expr;
+struct Grouping : public Expr {
+    std::unique_ptr<Expr> expr;
 };
 
-template<class T>
-struct Binary : public Expr<T> {
+struct Binary : public Expr {
     std::string_view op;
-    std::unique_ptr<Expr<T>> left;
-    std::unique_ptr<Expr<T>> right;
+    std::unique_ptr<Expr> left;
+    std::unique_ptr<Expr> right;
 };
 
-template<class T>
-struct ArrayLiteral : public Expr<T> {
-    std::vector<Expr<T>> values;
+struct ArrayLiteral : public Expr {
+    std::vector<Expr> values;
 };
 
-template<class T>
-struct DictLiteral : public Expr<T> {
-    std::vector<std::pair<Expr<T>, Expr<T>>> pairs;
+struct DictLiteral : public Expr {
+    std::vector<std::pair<Expr, Expr>> pairs;
 };
 
-template<class T>
-struct Lambda : public Expr<T> {
-    std::unique_ptr<FunctionData<T>> lambda;
+struct Lambda : public Expr {
+    FunctionData lambda;
 };
 
-template<class T>
-struct ExprStmt : public Stmt<T> {
-    std::unique_ptr<Expr<T>> expr;
+struct ExprStmt : public Stmt {
+    std::unique_ptr<Expr> expr;
 };
 
-template<class T>
-struct If : public Stmt<T> {
-    std::unique_ptr<Expr<T>> condition;
-    std::unique_ptr<Stmt<T>> then;
-    std::optional<std::unique_ptr<Expr<T>>> otherwise;
+struct If : public Stmt {
+    std::unique_ptr<Expr> condition;
+    std::unique_ptr<Stmt> then;
+    std::optional<std::unique_ptr<Expr>> otherwise;
 };
 
 struct Range {
@@ -928,44 +905,38 @@ struct Range {
     constants::PPGANumber step;
 };
 
-template<class T>
-struct For : public Stmt<T> {
+struct For : public Stmt {
     bool is_fori;
-    std::vector<Expr<T>> vars;
+    std::vector<Expr> vars;
     std::variant<
         Range, // A range
-        std::vector<Expr<T>> // A sequence of expressions
+        std::vector<Expr> // A sequence of expressions
     > condition;
 };
 
-template<class T>
-struct While : public Stmt<T> {
-    std::unique_ptr<Expr<T>> condition;
-    std::unique_ptr<Stmt<T>> body;
+struct While : public Stmt {
+    std::unique_ptr<Expr> condition;
+    std::unique_ptr<Stmt> body;
 };
 
-template<class T>
-struct Block : public Stmt<T> {
-    std::vector<Expr<T>> statements;
+struct Block : public Stmt {
+    std::vector<Expr> statements;
     bool is_standalone;
 };
 
 /// Used for inserting multiple statements without generating a block.
-template<class T>
-struct StmtSequence : public Stmt<T> {
-    std::vector<Expr<T>> statements;
+struct StmtSequence : public Stmt {
+    std::vector<Expr> statements;
 };
 
-template<class T>
-struct Return: public Stmt<T> {
-    std::vector<Expr<T>> values;
+struct Return: public Stmt {
+    std::vector<Expr> values;
 };
 
-template<class T>
-struct Assignment: public Stmt<T> {
-    std::vector<Expr<T>> vars;
+struct Assignment: public Stmt {
+    std::vector<Expr> vars;
     std::string_view op;
-    std::unique_ptr<Expr<T>> value;
+    std::unique_ptr<Expr> value;
 };
 
 enum class VarKind {
@@ -973,17 +944,15 @@ enum class VarKind {
     Global
 };
 
-template <class T>
-struct FuncDecl : public Stmt<T> {
-    FunctionData<T> data;
+struct FuncDecl : public Stmt {
+    FunctionData data;
     VarKind kind;
 };
 
-template<class T>
-struct VarDecl : public Stmt<T> {
+struct VarDecl : public Stmt {
     VarKind kind;
     std::vector<std::string> names;
-    std::optional<std::unique_ptr<Expr<T>>> initializer;
+    std::optional<std::unique_ptr<Expr>> initializer;
 };
 
 enum class MatchPatKind {
@@ -995,21 +964,18 @@ enum class MatchPatKind {
     Else,
 };
 
-template<class T>
 struct AST  {
     PPGAConfig config;
-    std::vector<Stmt<T>> statements;
+    std::vector<Stmt> statements;
 };
 
-template<class T>
-class Visitor {
-public:
-    virtual T visit(AST<T>& ast)  = 0;
-    virtual T visit(Expr<T>& expr) { expr.accept(*this); }
-    virtual T visit(Stmt<T>& stmt) { stmt.accept(*this); }
-    virtual T visit(If<T>& stmt) = 0;
-    virtual T visit(Literal<T>& lit) = 0;
-    virtual T visit(ExprStmt<T>& stmt) = 0;
+struct Visitor {
+    virtual void visit(AST& ast)  = 0;
+    virtual void visit(Expr& expr) { expr.accept(*this); }
+    virtual void visit(Stmt& stmt) { stmt.accept(*this); }
+    virtual void visit(If& stmt) = 0;
+    virtual void visit(Literal& lit) = 0;
+    virtual void visit(ExprStmt& stmt) = 0;
 };
 }
 
@@ -1023,7 +989,9 @@ public:
     Parser(std::vector<lexer::Token>&& tokens, PPGAConfig config)
     : tokens(std::move(tokens)), current(0), config(config) {}
 
-    std::optional<ast::AST>
+    std::optional<ast::AST> parse(error::ErrCtx& ex) {
+        return std::nullopt;
+    }
 };
 }
 
