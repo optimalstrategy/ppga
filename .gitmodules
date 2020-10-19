@@ -1,0 +1,3 @@
+[submodule "ppga-cpp/extern/googletest"]
+	path = ppga-cpp/extern/googletest
+	url = https://github.com/google/googletest

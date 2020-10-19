@@ -3,3 +3,6 @@ target
 .vscode/
 secrets.toml
 *.vsix
+.idea/
+extern/
+cmake-build-debug/
