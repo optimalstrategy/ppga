@@ -15,6 +15,16 @@
 #include <type_traits>
 #include <cassert>
 
+#define PPGA_PARSER_DEBUG 0
+#define PPGA_PARSER_LOG(name) \
+    if (PPGA_PARSER_DEBUG) { \
+        std::cout << #name << ":\n    previous = "; \
+        if (this->current > 0) std::cout << this->previous(); \
+        else std::cout << "..."; \
+        std::cout << "\n    current = " << this->peek() << "\n"; \
+    }
+
+
 namespace ppga {
 namespace constants {
     using namespace std::string_view_literals;
@@ -51,7 +61,8 @@ struct Span {
     }
 
     friend std::ostream& operator<<(std::ostream& out, const Span& span) {
-        out << "Span { line = " << span.line << ", lexeme = \"" << span.slice() << "\"}";
+        out << "Span { line = " << span.line << ", lexeme = \"" << span.slice()
+            << "\" (" << span.start << ".." << span.end << ") }";
         return out;
     }
 };
@@ -399,6 +410,12 @@ public:
         return span_;
     }
 
+    friend std::ostream& operator<<(std::ostream& out, const Token& token) {
+        out << "Token {\n    span = " << token.span() << ",\n    kind = " << token.kind()
+            << ",\n    payload = " << (token.has_payload() ? "..." : "()") << "\n}";
+        return out;
+    }
+
     static const std::unordered_map<std::string_view, TokenKind> KEYWORDS;
 };
 
@@ -676,6 +693,7 @@ public:
         while (!match('\n')) {
             advance();
         }
+        ++line;
     }
 
     /// Scans a multi-line comment.
@@ -1284,6 +1302,7 @@ public:
 
 private:
     ast::StmtPtr statement() {
+        PPGA_PARSER_LOG(statement);
         if (match<TokenKind::Let, TokenKind::Global>()) {
             return var_declaration();
         } else if (match<TokenKind::LeftBrace>()) {
@@ -1319,6 +1338,7 @@ private:
     }
 
     ast::StmtPtr var_declaration() {
+        PPGA_PARSER_LOG(var_declaration);
         ast::VarKind kind;
         switch (previous().kind()) {
             case TokenKind::Let:
@@ -1357,7 +1377,7 @@ private:
         }
 
         auto perform_error_expansion = match<TokenKind::Query>() ? std::optional(previous()) : std::nullopt;
-        try_consume_semicolon("Expected a `;` after the variable declaration");
+        consume_semicolon("Expected a `;` after the variable declaration");
 
         if (perform_error_expansion.has_value() && names.size() != 1) {
             error(perform_error_expansion.value(), "Cannot use `?` with more than one variable name.");
@@ -1456,6 +1476,8 @@ private:
     }
 
     ast::StmtPtr block(bool is_standalone) {
+        PPGA_PARSER_LOG(block);
+
         std::vector<ast::StmtPtr> statements{};
         while (!check(TokenKind::RightBrace) && !is_at_end()) {
             try {
@@ -1804,11 +1826,11 @@ private:
     // TODO: remember to fix the backslash operator
     ast::ExprPtr multiplication() {
         return parse_binary<
-                &Parser::exponentiation,
-                TokenKind::Star,
-                TokenKind::Slash,
-                TokenKind::BackSlash,
-                TokenKind::Percent
+            &Parser::exponentiation,
+            TokenKind::Star,
+            TokenKind::Slash,
+            TokenKind::BackSlash,
+            TokenKind::Percent
         >();
     }
 
@@ -1964,7 +1986,7 @@ private:
         } else {
             args = std::vector<ast::ExprPtr>{};
         }
-        try_consume(TokenKind::RightParen, "Expected a `)` after the argument list");
+        consume(TokenKind::RightParen, "Expected a `)` after the argument list");
         return std::make_unique<ast::Call>(std::move(callee), std::move(args));
     }
 
@@ -2098,6 +2120,14 @@ private:
         throw parser_exception();
     }
 
+    Token& consume_semicolon(std::string&& message) {
+        auto value = try_consume_semicolon(std::move(message));
+        if (value.has_value()) {
+            return value.value();
+        }
+        throw parser_exception();
+    }
+
     void synchronize() {
         advance();
         while (!is_at_end()) {
@@ -2144,12 +2174,13 @@ private:
 
     inline lexer::Token& advance() noexcept {
         if (current < tokens.size()) ++current;
-        return tokens[current];
+        return tokens[current - 1];
     }
 
     [[nodiscard]]
     inline const lexer::Token& peek() const noexcept {
-        return tokens[current];
+        if (current < tokens.size()) return tokens[current];
+        return tokens[current - 1];
     }
 
     [[nodiscard]]
