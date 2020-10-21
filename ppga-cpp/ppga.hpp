@@ -672,9 +672,6 @@ public:
                     }
 
                     span = this->span(frag_start);
-                    // Bump the end value to include the character before the }.
-                    // This is needed because `end` is exclusive.
-                    span.end += 1;
                     auto sublexer = Lexer(span.slice());
                     std::vector<Token> frag_tokens = sublexer.lex(ex);
                     frags.emplace_back(frag_tokens);
@@ -684,15 +681,15 @@ public:
             advance();
         }
 
+        if (prev_fragment_end < source.length() - 1) {
+            auto span = this->span(prev_fragment_end);
+            frags.emplace_back(span.slice());
+        }
+
         if (!match(quote)) {
             auto span = this->span(start, start_line);
             ex.error(span, "Unterminated f-string");
             return Token(span, TokenKind::Error);
-        }
-
-        if (prev_fragment_end < source.length() - 1) {
-            auto span = this->span(prev_fragment_end);
-            frags.emplace_back(span.slice());
         }
 
         auto span = this->span(start, start_line);

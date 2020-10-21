@@ -99,12 +99,44 @@ TEST(LexerTest, TestTokensAreLexedCorrectly) {
 
     EXPECT_EQ(result.size(), expected.size());
 
-    size_t i = 0;
     for (size_t i = 0 ; i <expected.size(); ++i) {
         EXPECT_EQ(expected[i].first, result[i].kind()) << "[Test #" << i << "] Token kinds didn't match";
         EXPECT_EQ(expected[i].second, result[i].lexeme()) << "[Test #" << i << "] Token lexemes didn't match";
     }
+}
 
+
+TEST(LexerTest, TestFStringScanning) {
+    auto source = R"(f"an {interpolated + 1} \{and escaped} string")";
+
+    auto ex = ppga::error::ErrCtx();
+    auto lexer = ppga::lexer::Lexer(source);
+    auto result = lexer.lex(ex);
+
+    EXPECT_EQ(result.size(), 1);
+
+    EXPECT_EQ(result[0].kind(), TokenKind::FString);
+
+    auto& payload = result[0].get_fstring_payload();
+    EXPECT_EQ(payload.size(), 4);
+
+    EXPECT_EQ(payload[0].is_string, true);
+    EXPECT_EQ(payload[0].string_fragment, "an ");
+
+    EXPECT_EQ(payload[1].is_string, false);
+    EXPECT_EQ(payload[1].inner_tokens.size(), 3);
+    EXPECT_EQ(payload[1].inner_tokens[0].kind(), TokenKind::Identifier);
+    EXPECT_EQ(payload[1].inner_tokens[0].lexeme(), "interpolated");
+    EXPECT_EQ(payload[1].inner_tokens[1].kind(), TokenKind::Plus);
+    EXPECT_EQ(payload[1].inner_tokens[1].lexeme(), "+");
+    EXPECT_EQ(payload[1].inner_tokens[2].kind(), TokenKind::Number);
+    EXPECT_EQ(payload[1].inner_tokens[2].lexeme(), "1");
+
+    EXPECT_EQ(payload[2].is_string, true);
+    EXPECT_EQ(payload[2].string_fragment, " ");
+
+    EXPECT_EQ(payload[3].is_string, true);
+    EXPECT_EQ(payload[3].string_fragment, "{and escaped} string");
 }
 
 }  // namespace
