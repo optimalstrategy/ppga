@@ -15,7 +15,8 @@
 #include <type_traits>
 #include <cassert>
 
-#define PPGA_PARSER_DEBUG 0
+#define PPGA_PARSER_DEBUG 1
+#define PPGA_PARSER_INSTANTLY_FAIL 1
 #define PPGA_PARSER_LOG(name) \
     if (PPGA_PARSER_DEBUG) { \
         std::cout << #name << ":\n    previous = "; \
@@ -464,13 +465,22 @@ public:
             case ',': kind = TokenKind::Comma; break;
             case '@': kind = TokenKind::Variadics; break;
             case '?': CHOOSE('?', TokenKind::Query, TokenKind::DoubleQuery);
-            case '=': CHOOSE('=', TokenKind::Equal, TokenKind::Eq);
             case '-': CHOOSE('=', TokenKind::Minus, TokenKind::MinusEqual);
             case '+': CHOOSE('=', TokenKind::Plus, TokenKind::PlusEqual);
             case '%': CHOOSE('=', TokenKind::Percent, TokenKind::PercentEqual)
             case '<': CHOOSE('=', TokenKind::Lt, TokenKind::Le);
             case '>': CHOOSE('=', TokenKind::Gt, TokenKind::Ge);
             case '\\': CHOOSE('=', TokenKind::BackSlash, TokenKind::BackSlashEqual);
+            case '=': {
+                if (match('=')) {
+                    kind = TokenKind::Eq;
+                } else if (match('>')) {
+                    kind = TokenKind::FatArrow;
+                } else {
+                    kind = TokenKind::Equal;
+                }
+                break;
+            }
             case '.':  {
                 if (match('.')) {
                     kind = match('.') ? TokenKind::Ellipsis : TokenKind::DoubleDot;
@@ -510,6 +520,7 @@ public:
                 } else {
                     CHOOSE('=', TokenKind::Slash, TokenKind::SlashEqual);
                 }
+                break;
             }
             default: {
                 if (is_valid_identifier_start(ch.value())) {
@@ -861,7 +872,7 @@ const std::unordered_map<std::string_view, TokenKind> Token::KEYWORDS = {
     {"true"sv, TokenKind::True},
     {"false"sv, TokenKind::False},
     {"nil"sv, TokenKind::Nil},
-    {"not"sv, TokenKind::Nil}
+    {"not"sv, TokenKind::Not}
 };
 }
 
@@ -1293,6 +1304,7 @@ public:
             } catch (parser_exception& ignored) {
                 synchronize();
                 user_ex.extend(this->ex);
+                if (PPGA_PARSER_DEBUG && PPGA_PARSER_INSTANTLY_FAIL) break;
             }
         }
 
@@ -1324,15 +1336,15 @@ private:
             return while_statement();
         } else if (match<TokenKind::Return>()) {
             auto expr = std::make_unique<ast::Return>(arguments(TokenKind::Semicolon));
-            try_consume_semicolon("Expected a `;` after `return`");
+            consume_semicolon("Expected a `;` after `return`");
             return expr;
         } else if (match<TokenKind::Break>()) {
-            try_consume_semicolon("Expected a `;` after `break`");
+            consume_semicolon("Expected a `;` after `break`");
             return std::make_unique<ast::Break>();
         }
         auto stmt = assignment();
         if (dynamic_cast<ast::ExprStmt*>(stmt.get()) == nullptr) {
-            try_consume_semicolon("Expected a `;` after the expression");
+            consume_semicolon("Expected a `;` after the expression");
         }
         return stmt;
     }
@@ -1491,6 +1503,7 @@ private:
     }
 
     ast::StmtPtr if_statement() {
+        PPGA_PARSER_LOG(if_statement);
         auto condition = expression();
         try_consume(TokenKind::LeftBrace, "Expected a `{` after the if condition");
         auto then = block(false);
@@ -1509,6 +1522,7 @@ private:
     }
 
     ast::StmtPtr match_statement() {
+        PPGA_PARSER_LOG(match_statement);
         auto keyword = previous();
         auto value = expression();
         ast::ExprPtr bound_var;
@@ -1664,6 +1678,7 @@ private:
     }
 
     ast::StmtPtr for_statement(bool is_fori) {
+        PPGA_PARSER_LOG(for_statement);
         std::vector<ast::ExprPtr> vars = parameters();
         if (vars.empty()) {
             error(previous(), "Expected an identifier after the loop keyword");
@@ -1692,6 +1707,7 @@ private:
     }
 
     ast::Range range() {
+        PPGA_PARSER_LOG(range);
         try_consume(TokenKind::LeftParen, "Expected a `(` after `range`");
         auto step = "1"sv;
         auto start = "2"sv;
@@ -1708,12 +1724,14 @@ private:
     }
 
     ast::StmtPtr while_statement() {
+        PPGA_PARSER_LOG(while_statement);
         auto condition = expression();
         try_consume(TokenKind::LeftBrace, "Expected a `{` after the loop condition");
         return std::make_unique<ast::While>(std::move(condition), block(false));
     }
 
     ast::StmtPtr assignment() {
+        PPGA_PARSER_LOG(assignment);
         auto exprs = utils::make_vector(expression());
 
         while (match<TokenKind::Comma>()) {
@@ -1754,6 +1772,7 @@ private:
     }
 
     ast::FunctionData lambda() {
+        PPGA_PARSER_LOG(lambda);
         try_consume(TokenKind::LeftParen, "Expected a `(` before the parameter list.");
 
         std::vector<ast::ExprPtr> params{};
@@ -1782,6 +1801,7 @@ private:
     }
 
     ast::ExprPtr expression() {
+        PPGA_PARSER_LOG(expression);
         if (match<TokenKind::Fn>()) {
             return std::make_unique<ast::Lambda>(lambda());
         }
@@ -1789,6 +1809,7 @@ private:
     }
 
     ast::ExprPtr default_op() {
+        PPGA_PARSER_LOG(default_op);
         auto expr = logic_or();
 
         while (match<TokenKind::DoubleQuery>()) {
@@ -1804,27 +1825,33 @@ private:
     }
 
     ast::ExprPtr logic_or() {
+        PPGA_PARSER_LOG(logic_or);
         return parse_binary<&Parser::logic_and, TokenKind::Or>();
     }
 
     ast::ExprPtr logic_and() {
+        PPGA_PARSER_LOG(logic_and);
         return parse_binary<&Parser::equality, TokenKind::And>();
     }
 
     ast::ExprPtr equality() {
+        PPGA_PARSER_LOG(equality);
         return parse_binary<&Parser::comparison, TokenKind::Ne, TokenKind::Eq>();
     }
 
     ast::ExprPtr comparison() {
+        PPGA_PARSER_LOG(comparison);
         return parse_binary<&Parser::addition, TokenKind::Lt, TokenKind::Le, TokenKind::Gt, TokenKind::Ge>();
     }
 
     ast::ExprPtr addition() {
+        PPGA_PARSER_LOG(addittion);
         return parse_binary<&Parser::multiplication, TokenKind::Plus, TokenKind::Minus, TokenKind::DoubleDot>();
     }
 
     // TODO: remember to fix the backslash operator
     ast::ExprPtr multiplication() {
+        PPGA_PARSER_LOG(multiplication);
         return parse_binary<
             &Parser::exponentiation,
             TokenKind::Star,
@@ -1835,10 +1862,12 @@ private:
     }
 
     ast::ExprPtr exponentiation() {
+        PPGA_PARSER_LOG(exponentiation);
         return parse_binary<&Parser::unary, &Parser::exponentiation, TokenKind::Pow>();
     }
 
     ast::ExprPtr unary() {
+        PPGA_PARSER_LOG(unary);
         if (match<TokenKind::Minus, TokenKind::Not, TokenKind::Ellipsis>()) {
             auto op = previous().lexeme();
             auto value = unary();
@@ -1849,6 +1878,7 @@ private:
     }
 
     ast::ExprPtr call() {
+        PPGA_PARSER_LOG(call);
         auto expr = match<TokenKind::Len>() ? finish_len() : primary();
 
         while (match<TokenKind::LeftParen, TokenKind::Dot, TokenKind::Colon, TokenKind::LeftBracket>()) {
@@ -1891,6 +1921,7 @@ private:
     }
 
     ast::ExprPtr primary() {
+        PPGA_PARSER_LOG(primary);
         auto token = advance();
 
         ast::ExprPtr expr;
@@ -1953,6 +1984,7 @@ private:
     }
 
     ast::ExprPtr finish_fstring(std::vector<FStringFragment>& frags) {
+        PPGA_PARSER_LOG(finish_fstring);
         std::vector<ast::ExprPtr> exprs{};
 
         for (const auto& frag : frags) {
@@ -1975,6 +2007,7 @@ private:
     }
 
     ast::ExprPtr finish_call(ast::ExprPtr callee) {
+        PPGA_PARSER_LOG(finish_call);
         std::vector<ast::ExprPtr> args;
         if (!check(TokenKind::RightParen)) {
             try {
@@ -1991,6 +2024,7 @@ private:
     }
 
     std::vector<ast::ExprPtr> arguments(TokenKind stop) {
+        PPGA_PARSER_LOG(arguments);
         std::vector<ast::ExprPtr> args{};
 
         if (!check(stop)) {
@@ -2005,6 +2039,7 @@ private:
     }
 
     std::vector<ast::ExprPtr> parameters() {
+        PPGA_PARSER_LOG(parameters);
         std::vector<ast::ExprPtr> params{};
 
         if (!check(TokenKind::RightParen)) {

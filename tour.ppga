@@ -1,8 +1,33 @@
+//print("x", "is", x);
+print(f"x is {x}");
+
+fn f(x) {
+    print("x", "is", x);
+    // string interpolation, transpiles to "x is " .. tostring(x)
+    print(f"x is {x}");
+
+    // Create a new local variable
+    let y = x;
+
+    // Create a new global variable
+    global z = 5;
+
+    let arr = [1, 2, 3];
+    if not x {
+        // returns the array `arr` as an object
+        // the result is an array: [x, arr]
+        return x, arr;  // => return (x), (arr)
+    }
+
+    // unpacks the array `arr` as a sequence of its elements
+    // the result is an array: [x, 1, 2, 3]
+    return x, ...arr;  // => return x, arr
+}
 /*
     Multi-line comments look like this.
 */
 // The single-line comment is also C-style.
-
+/*
 // Variables and functions may be declared with `let` and `global`:
 let a =  -1;
 let b = 2 + 2;
@@ -190,3 +215,4 @@ fn main() {
 
 let res = main();
 print(f"Main returned: {res}");
+*/
