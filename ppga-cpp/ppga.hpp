@@ -17,15 +17,16 @@
 
 namespace ppga {
 namespace constants {
-    using PPGANumber = double;
+    using namespace std::string_view_literals;
+
     /// The number of indentation spaces in the resulting lua code.
     static size_t DEFAULT_PPGA_INDENT_SIZE = 4;
     /// The name of the default operator function
-    static const std::string DEFAULT_OP_NAME = "__PPGA_INTERNAL_DEFAULT";
+    static constexpr auto DEFAULT_OP_NAME = "__PPGA_INTERNAL_DEFAULT"sv;
     /// The name of the error handler function
-    static const std::string ERR_HANDLER_NAME = "__PPGA_INTERNAL_HANDLE_ERR";
+    static constexpr auto ERR_HANDLER_NAME = "__PPGA_INTERNAL_HANDLE_ERR"sv;
     /// The name of the default error handler callback
-    static const std::string ERR_CALLBACK_NAME = "__PPGA_INTERNAL_DFLT_ERR_CB";
+    static constexpr auto ERR_CALLBACK_NAME = "__PPGA_INTERNAL_DFLT_ERR_CB"sv;
 }
 
 struct PPGAConfig {
@@ -48,6 +49,11 @@ struct Span {
     constexpr std::string_view slice() const {
         return source.substr(start, end - start);
     }
+
+    friend std::ostream& operator<<(std::ostream& out, const Span& span) {
+        out << "Span { line = " << span.line << ", lexeme = \"" << span.slice() << "\"}";
+        return out;
+    }
 };
 }
 
@@ -55,6 +61,12 @@ namespace error {
 struct PPGAError {
     lexer::Span span;
     std::string description;
+
+    friend std::ostream& operator<<(std::ostream& out, const PPGAError& error) {
+        out << "PPGAError {\n    Span: " << error.span << ",\n    description: \""
+            << error.description << "\"\n}";
+        return out;
+    }
 };
 
 struct ErrCtx {
@@ -72,7 +84,7 @@ struct ErrCtx {
     }
 
     void extend(ErrCtx& ex) {
-        errors.reserve(errors.size() + distance(ex.errors.begin(), ex.errors.end()));
+        errors.reserve(errors.size() + ex.errors.size());
         errors.insert(errors.end(),ex.errors.begin(),ex.errors.end());
         ex.errors.clear();
     }
@@ -1073,9 +1085,9 @@ struct Block : public Visitable<Stmt, Block> {
 
 /// Used for inserting multiple statements without generating a block.
 struct StmtSequence : public Visitable<Stmt, StmtSequence> {
-    std::vector<ExprPtr> statements;
+    std::vector<StmtPtr> statements;
 
-    explicit StmtSequence(std::vector<ExprPtr>&& statements)
+    explicit StmtSequence(std::vector<StmtPtr>&& statements)
         : Visitable(), statements(std::move(statements)) {}
 };
 
@@ -1126,11 +1138,14 @@ enum class MatchPatKind {
     Else,
 };
 
-struct AST  {
+struct AST {
     PPGAConfig config;
     std::vector<StmtPtr> statements;
 };
 
+
+} // ast
+namespace utils {
 template <typename>
 struct deduce_arg_type;
 
@@ -1179,7 +1194,50 @@ constexpr inline std::optional<Return> dynamic_visitor(Base* ptr, Fs... fs) {
     auto t = std::forward_as_tuple(fs...);
     return _dynamic_visitor_tup<0, Base, Return, Fs...>(ptr, t);
 }
-} // ast
+
+/* See https://stackoverflow.com/a/29975225 */
+// get the first type in a pack, if it exists:
+template<class...Ts>
+struct first {};
+
+template<class T, class...Ts>
+struct first<T, Ts...>{
+    using type = T;
+};
+template<class...Ts>
+using first_t = typename first<Ts...>::type;
+
+// build the return type:
+template<class T0, class...Ts>
+using vector_T =
+typename std::conditional<
+        std::is_same<T0, void>::value,
+        typename std::decay<first_t<Ts...>>::type,
+        T0
+>::type;
+template<class T0, class...Ts>
+using vector_t = std::vector<vector_T<T0, Ts...>>;
+
+// make a vector, non-empty arg case:
+template<class T0 = void, class... Ts, class R = vector_t<T0, Ts...>>
+R make_vector( Ts&&...ts ) {
+    R retval;
+    retval.reserve(sizeof...(Ts)); // we know how many elements
+    // array unpacking trick:
+    using discard = int[];
+    (void) discard{0, (
+            (retval.emplace_back(std::forward<Ts>(ts))),
+                    void(),
+                    0
+    )...};
+    return retval; // NRVO!
+}
+// the empty overload:
+template<class T>
+std::vector<T> make_vector() {
+    return {};
+}
+} // utils
 
 namespace parser {
 using namespace lexer;
@@ -1233,8 +1291,8 @@ private:
         } else if (match<TokenKind::Fn>()) {
             auto name = consume_identifier("Expected a function name after the keyword.");
             auto fn = lambda();
-            fn.name = name;
-            return std::make_unique<ast::FuncDecl>(fn, ast::VarKind::Local);
+            fn.name = name.lexeme();
+            return std::make_unique<ast::FuncDecl>(std::move(fn), ast::VarKind::Local);
         }else if (match<TokenKind::If>()) {
             return if_statement();
         } else if (match<TokenKind::Match>()) {
@@ -1261,7 +1319,140 @@ private:
     }
 
     ast::StmtPtr var_declaration() {
+        ast::VarKind kind;
+        switch (previous().kind()) {
+            case TokenKind::Let:
+                kind = ast::VarKind::Local;
+                break;
+            case TokenKind::Global:
+                kind = ast::VarKind::Global;
+                break;
+            default:
+                assert(false && "Unreachable");
+        }
+        if (kind == ast::VarKind::Global && match<TokenKind::Fn>()) {
+            auto name = consume_identifier("Expected a function name after the keyword.");
+            auto fn = lambda();
+            fn.name =  name.lexeme();
+            return std::make_unique<ast::FuncDecl>(std::move(fn), kind);
+        }
 
+        auto names = std::vector<Token>{ consume_identifier("Expected a variable name after the keyword.") };
+        while (match<TokenKind::Comma>()) {
+            names.push_back(consume_identifier("Expected a variable name after the comma."));
+        }
+
+        std::optional<ast::ExprPtr> initializer{ std::nullopt };
+
+        if (match<TokenKind::Equal>()) {
+            initializer = expression();
+        } else {
+            if (kind == ast::VarKind::Global) {
+                auto ident = names.at(0);
+                error(ident, "Global variables must be assigned a value.");
+            }
+            if (match<TokenKind::Query>()) {
+                error(previous(), "Cannot use `?` without an initializer.");
+            }
+        }
+
+        auto perform_error_expansion = match<TokenKind::Query>() ? std::optional(previous()) : std::nullopt;
+        try_consume_semicolon("Expected a `;` after the variable declaration");
+
+        if (perform_error_expansion.has_value() && names.size() != 1) {
+            error(perform_error_expansion.value(), "Cannot use `?` with more than one variable name.");
+            throw parser_exception();
+        }
+
+        ast::StmtPtr stmt;
+        if (perform_error_expansion.has_value()) {
+            auto query = perform_error_expansion.value();
+            if (!has_err_block(*initializer.value())) {
+                ast::ExprPtr call = std::make_unique<ast::Call>(
+                    make_var(constants::ERR_HANDLER_NAME),
+                    utils::make_vector(make_var(constants::ERR_CALLBACK_NAME), std::move(initializer.value()))
+                );
+                initializer = std::move(call);
+            }
+            // Generate a let statement that initializes the variable to nil
+            auto target_var = names.at(0).lexeme();
+            auto decl = std::make_unique<ast::VarDecl>(
+                    kind,
+                    std::vector<std::string>{std::string(target_var)},
+                    std::make_unique<ast::Literal>("nil"sv)
+            );
+
+            std::ostringstream ok_name("_ok_L");
+            ok_name << query.span().line << "S" << query.span().start;
+            std::ostringstream err_name("_err_L");
+            err_name << query.span().line << "S" << query.span().start;
+            auto ok_var = make_owned_var(ok_name.str());
+            auto err_var = make_owned_var(err_name.str());
+            std::vector<ast::ExprPtr> assignment_var;
+            assignment_var.emplace_back(make_var(target_var));
+
+            auto block = std::make_unique<ast::Block>(utils::make_vector<ast::StmtPtr>(
+                    // Generate the tuple destruction statement:
+                    // let ok, err = <initializer>;
+                    std::make_unique<ast::VarDecl>(
+                            kind,
+                            std::vector<std::string>{ok_name.str(), err_name.str()},
+                            std::move(initializer)
+                    ),
+                    // Check if the error is `nil` and return the error if it is
+                    std::make_unique<ast::If>(
+                            std::make_unique<ast::Binary>(
+                                    "!=", std::move(err_var), std::make_unique<ast::Literal>("nil"sv)),
+                            std::make_unique<ast::Block>(utils::make_vector<ast::StmtPtr>(
+                                std::make_unique<ast::Return>(
+                                    utils::make_vector<ast::ExprPtr>(
+                                        std::make_unique<ast::Literal>("nil"sv),
+                                        std::move(err_var)
+                                    )
+                                )
+                            ), false),
+                            std::nullopt
+                    ),
+                    // Assign the ok to the variable
+                    std::make_unique<ast::Assignment>(
+                        "=",
+                        std::move(assignment_var),
+                        std::move(ok_var)
+                    )
+            ), true);
+            stmt = std::make_unique<ast::StmtSequence>(utils::make_vector<ast::StmtPtr>(std::move(decl), std::move(block) ));
+        } else {
+            auto owned_names = std::vector<std::string>();
+            owned_names.reserve(names.size());
+            for (const auto& name : names) {
+                owned_names.emplace_back(name.lexeme());
+            }
+            stmt = std::make_unique<ast::VarDecl>(kind, std::move(owned_names), std::move(initializer.value()));
+        }
+
+        return stmt;
+    }
+
+    static bool has_err_block(ast::Expr& expr) {
+        ast::Expr* node = &expr;
+
+        while (true) {
+            if (auto call = dynamic_cast<ast::Call*>(node); call != nullptr) {
+                if (
+                    auto v = dynamic_cast<ast::GeneratedVariable*>(call->callee.get());
+                    v != nullptr && v->name == constants::ERR_HANDLER_NAME
+                ) {
+                    return true;
+                }
+                break;
+            } else if (auto group = dynamic_cast<ast::Grouping*>(node); group != nullptr) {
+                node = group->expr.get();
+            } else {
+                break;
+            }
+        }
+
+        return false;
     }
 
     ast::StmtPtr block(bool is_standalone) {
@@ -1387,19 +1578,19 @@ private:
             throw parser_exception();
         }
 
-        return std::make_unique<ast::Block>(std::vector<ast::StmtPtr> {
+        return std::make_unique<ast::Block>(utils::make_vector<ast::StmtPtr>(
             std::make_unique<ast::VarDecl>(
                 ast::VarKind::Local,
                 std::vector<std::string> { extract_var_name(bound_var) },
                 std::move(value)),
             std::move(stmt.value())
-        },true);
+        ),true);
     }
 
     /// Infers the kind of the given pattern. All patterns that mention the bound variable are value patterns,
     /// all other patterns are comparison patterns.
     ast::MatchPatKind infer_pattern_kind(std::string_view var, ast::Expr& expr) {
-        return ast::dynamic_visitor<ast::MatchPatKind>(
+        return utils::dynamic_visitor<ast::MatchPatKind>(
             &expr,
             [&var](const ast::Variable* v) {
                 return v->name == var ? ast::MatchPatKind::Value : ast::MatchPatKind::Comparison;
@@ -1501,7 +1692,7 @@ private:
     }
 
     ast::StmtPtr assignment() {
-        auto exprs = std::vector<ast::ExprPtr> { expression() };
+        auto exprs = utils::make_vector(expression());
 
         while (match<TokenKind::Comma>()) {
             exprs.push_back(expression());
@@ -1540,6 +1731,34 @@ private:
         return std::make_unique<ast::ExprStmt>(std::move(exprs.at(0)));
     }
 
+    ast::FunctionData lambda() {
+        try_consume(TokenKind::LeftParen, "Expected a `(` before the parameter list.");
+
+        std::vector<ast::ExprPtr> params{};
+        if (!check(TokenKind::RightParen)) {
+            params = parameters();
+        }
+
+        consume(TokenKind::RightParen, "Expected a `)` after the parameter list");
+
+        ast::StmtPtr body;
+        if (match<TokenKind::FatArrow>()) {
+            body = std::make_unique<ast::Block>(
+                utils::make_vector<ast::StmtPtr>(std::make_unique<ast::Return>(utils::make_vector(expression()))),
+                false
+            );
+        } else {
+            try_consume(TokenKind::LeftBrace, "Expected `{` a `=>` after the parameter list.");
+            body = block(false);
+        }
+
+        return ast::FunctionData {
+            std::nullopt,
+            std::move(params),
+            std::move(body)
+        };
+    }
+
     ast::ExprPtr expression() {
         if (match<TokenKind::Fn>()) {
             return std::make_unique<ast::Lambda>(lambda());
@@ -1555,7 +1774,7 @@ private:
             ast::ExprPtr callee = std::make_unique<ast::Variable>(
                 std::string_view(constants::DEFAULT_OP_NAME)
             );
-            auto args = std::vector<ast::ExprPtr> { std::move(expr), std::move(right) };
+            auto args = utils::make_vector<ast::ExprPtr>(std::move(expr), std::move(right));
             expr = std::make_unique<ast::Call>(std::move(callee), std::move(args));
         }
 
@@ -1633,15 +1852,15 @@ private:
                 // Generate an err block
                 ast::ExprPtr callback = std::make_unique<ast::Lambda>(ast::FunctionData {
                     std::nullopt,
-                    std::vector<ast::ExprPtr> { make_owned_var("err") },
+                    utils::make_vector<ast::ExprPtr>(make_owned_var("err")),
                     std::move(body)
                 });
                 expr = std::make_unique<ast::Call>(
                     make_var(std::string_view(constants::ERR_HANDLER_NAME)),
-                    std::vector<ast::ExprPtr>{
+                    utils::make_vector<ast::ExprPtr>(
                         std::move(callback),
                         std::move(expr)
-                    }
+                    )
                 );
             }
         }
@@ -1953,12 +2172,17 @@ private:
 }
 
 
-std::string ppga_to_lua(const std::string& source, PPGAConfig ) {
+std::string ppga_to_lua(const std::string& source, PPGAConfig config) {
     auto ex = ppga::error::ErrCtx{};
     auto lexer = ppga::lexer::Lexer(source);
     auto tokens = lexer.lex(ex);
     for (const auto& tok : tokens) {
         std::cout << "Token: " << tok.kind() << " \"" << tok.lexeme() << "\"\n";
+    }
+    auto parser = ppga::parser::Parser(std::move(tokens), config);
+    auto result = parser.parse(ex);
+    for (const auto& e : ex.errors) {
+        std::cout << e << "\n";
     }
     return "";
 }

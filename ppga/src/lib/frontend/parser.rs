@@ -261,10 +261,10 @@ impl<'a> Parser<'a> {
     }
 
     fn has_err_block(expr: &Expr<'a>) -> bool {
-        let mut node = Some(expr);
+        let mut node = expr;
 
-        while let Some(expr) = node {
-            match &expr.kind {
+        loop {
+            match &node.kind {
                 ExprKind::Call(callee, _) => match &callee.kind {
                     ExprKind::GeneratedVariable(v) if v == ERR_HANDLER_NAME => {
                         return true;
@@ -272,7 +272,7 @@ impl<'a> Parser<'a> {
                     _ => break,
                 },
                 ExprKind::Grouping(ref expr) => {
-                    node = Some(expr);
+                    node = expr;
                 }
                 _ => break,
             }
@@ -481,7 +481,7 @@ impl<'a> Parser<'a> {
                 MatchPatKind::Comparison
             }
             ExprKind::Unary(_, obj) | ExprKind::Grouping(obj) => {
-                infer_pattern_kind(var, &obj)
+                self.infer_pattern_kind(var, &obj)
             }
             ExprKind::Binary(left, _, right) => {
                 if self.infer_pattern_kind(var, &left).is_value()
@@ -1298,7 +1298,7 @@ mod tests {
             Ok(()),
             Ok(()),
             Ok(()),
-            Err("Comma is allowed only in let, assignment, and return statements."),
+            Err("Comma is allowed only in let/global, assignment, and return statements."),
             Err("Expected a `;` after the variable declaration"),
         ];
 
