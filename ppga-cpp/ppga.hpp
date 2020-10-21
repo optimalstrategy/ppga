@@ -255,7 +255,7 @@ enum class TokenKind {
     EndOfFile,
 };
 
-std::ostream& operator<<(std::ostream& out, const TokenKind kind) {
+inline std::ostream& operator<<(std::ostream& out, const TokenKind kind) {
     const char* s;
 #define PROCESS_VAL(p) case(TokenKind :: p): s = #p; break;
     switch (kind) {
@@ -349,6 +349,31 @@ struct FStringFragment {
             : inner_tokens(std::move(tokens)), is_string(false) {}
 };
 
+
+static const std::unordered_map<std::string_view, TokenKind> KEYWORDS = {
+        {"range"sv, TokenKind::Range},
+        {"len"sv, TokenKind::Len},
+        {"fn"sv, TokenKind::Fn},
+        {"let"sv, TokenKind::Let},
+        {"global"sv, TokenKind::Global},
+        {"break"sv, TokenKind::Break},
+        {"as"sv, TokenKind::As},
+        {"match"sv, TokenKind::Match},
+        {"and"sv, TokenKind::And},
+        {"or"sv, TokenKind::Or},
+        {"in"sv, TokenKind::In},
+        {"if"sv, TokenKind::If},
+        {"else"sv, TokenKind::Else},
+        {"while"sv, TokenKind::While},
+        {"for"sv, TokenKind::For},
+        {"fori"sv, TokenKind::ForI},
+        {"return"sv, TokenKind::Return},
+        {"true"sv, TokenKind::True},
+        {"false"sv, TokenKind::False},
+        {"nil"sv, TokenKind::Nil},
+        {"not"sv, TokenKind::Not}
+};
+
 class Token {
     Span span_;
     TokenKind kind_;
@@ -416,8 +441,6 @@ public:
             << ",\n    payload = " << (token.has_payload() ? "..." : "()") << "\n}";
         return out;
     }
-
-    static const std::unordered_map<std::string_view, TokenKind> KEYWORDS;
 };
 
 class Lexer {
@@ -598,8 +621,8 @@ public:
         }
 
         TokenKind kind;
-        auto found = Token::KEYWORDS.find(name);
-        if (found != Token::KEYWORDS.cend()) {
+        auto found = KEYWORDS.find(name);
+        if (found != KEYWORDS.cend()) {
             kind = found->second;
         } else {
             kind = TokenKind::Identifier;
@@ -848,29 +871,7 @@ public:
 
 };
 
-const std::unordered_map<std::string_view, TokenKind> Token::KEYWORDS = {
-    {"range"sv, TokenKind::Range},
-    {"len"sv, TokenKind::Len},
-    {"fn"sv, TokenKind::Fn},
-    {"let"sv, TokenKind::Let},
-    {"global"sv, TokenKind::Global},
-    {"break"sv, TokenKind::Break},
-    {"as"sv, TokenKind::As},
-    {"match"sv, TokenKind::Match},
-    {"and"sv, TokenKind::And},
-    {"or"sv, TokenKind::Or},
-    {"in"sv, TokenKind::In},
-    {"if"sv, TokenKind::If},
-    {"else"sv, TokenKind::Else},
-    {"while"sv, TokenKind::While},
-    {"for"sv, TokenKind::For},
-    {"fori"sv, TokenKind::ForI},
-    {"return"sv, TokenKind::Return},
-    {"true"sv, TokenKind::True},
-    {"false"sv, TokenKind::False},
-    {"nil"sv, TokenKind::Nil},
-    {"not"sv, TokenKind::Not}
-};
+
 }
 
 namespace ast {
@@ -2235,7 +2236,7 @@ private:
 }
 
 
-std::string ppga_to_lua(const std::string& source, PPGAConfig config) {
+inline std::string ppga_to_lua(const std::string& source, PPGAConfig config) {
     auto ex = ppga::error::ErrCtx{};
     auto lexer = ppga::lexer::Lexer(source);
     auto tokens = lexer.lex(ex);

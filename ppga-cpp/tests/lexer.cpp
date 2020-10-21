@@ -14,7 +14,6 @@ std::string err_to_string(ppga::error::ErrCtx& ex) {
     return ss.str();
 }
 
-/// Test the lexer.
 TEST(LexerTests, TestTokensAreLexedCorrectly) {
     auto source = "1 2. 3.141592 true false nil \"a string\" . .. ... @ ; : ,"
                   "( { [ ] } ) => ident range len fn ? ?? let global break as match and or in if else while for fori return "
