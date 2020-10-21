@@ -370,7 +370,7 @@ impl<'a> Parser<'a> {
 
             self.consume(
                 TokenKind::LeftBrace,
-                "Expected a `{` after the arrow value.",
+                "Expected a `{` after the arm pattern.",
             )?;
             let body = self.block(false)?;
             match kind {
@@ -481,11 +481,7 @@ impl<'a> Parser<'a> {
                 MatchPatKind::Comparison
             }
             ExprKind::Unary(_, obj) | ExprKind::Grouping(obj) => {
-                if self.infer_pattern_kind(var, &obj).is_value() {
-                    MatchPatKind::Value
-                } else {
-                    MatchPatKind::Comparison
-                }
+                infer_pattern_kind(var, &obj)
             }
             ExprKind::Binary(left, _, right) => {
                 if self.infer_pattern_kind(var, &left).is_value()
@@ -592,7 +588,7 @@ impl<'a> Parser<'a> {
             return Err(ParseError::new(
                 self.line,
                 self.previous().span.clone(),
-                "Comma is allowed only in let, assignment, and return statements.",
+                "Comma is allowed only in let/global, assignment, and return statements.",
             ));
         }
 
@@ -958,7 +954,7 @@ impl<'a> Parser<'a> {
         let mut exprs = vec![];
 
         let mut frags = frags.into_iter();
-        loop {
+        loop { // WTF is this loop???
             if let Some(frag) = frags.next() {
                 match frag {
                     Frag::Str(s) => {

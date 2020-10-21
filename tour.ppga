@@ -65,7 +65,7 @@ if x < 20 {
 
 // A match statement is a handy replacement for a bunch of chained if statements
 match x + 29 as y {
-    // Checks that invole the bound variable (y in this case)
+    // Checks that involve the bound variable (y in this case)
     // transpile to "value" conditions: if y < 60 then ... end
     y < 60 {
         print(f"y is < 60: {y}");

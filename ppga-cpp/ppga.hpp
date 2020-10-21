@@ -2,6 +2,7 @@
 #define PPGA_SCRIPT_PPGA_HPP
 
 #include <cstddef>
+#include <memory>
 #include <string>
 #include <cstring>
 #include <sstream>
@@ -11,12 +12,20 @@
 #include <variant>
 #include <iostream>
 #include <algorithm>
+#include <type_traits>
+#include <cassert>
 
 namespace ppga {
 namespace constants {
     using PPGANumber = double;
     /// The number of indentation spaces in the resulting lua code.
     static size_t DEFAULT_PPGA_INDENT_SIZE = 4;
+    /// The name of the default operator function
+    static const std::string DEFAULT_OP_NAME = "__PPGA_INTERNAL_DEFAULT";
+    /// The name of the error handler function
+    static const std::string ERR_HANDLER_NAME = "__PPGA_INTERNAL_HANDLE_ERR";
+    /// The name of the default error handler callback
+    static const std::string ERR_CALLBACK_NAME = "__PPGA_INTERNAL_DFLT_ERR_CB";
 }
 
 struct PPGAConfig {
@@ -56,6 +65,16 @@ struct ErrCtx {
             span,
             std::move(description)
         });
+    }
+
+    void error(PPGAError&& error) {
+        errors.push_back(std::move(error));
+    }
+
+    void extend(ErrCtx& ex) {
+        errors.reserve(errors.size() + distance(ex.errors.begin(), ex.errors.end()));
+        errors.insert(errors.end(),ex.errors.begin(),ex.errors.end());
+        ex.errors.clear();
     }
 
     [[nodiscard]]
@@ -291,11 +310,11 @@ std::ostream& operator<<(std::ostream& out, const TokenKind kind) {
     return out;
 }
 
-class FStringFragment {
+struct FStringFragment {
     std::vector<Token> inner_tokens;
     std::string_view string_fragment;
     bool is_string;
-public:
+
     explicit FStringFragment(std::string_view view)
         : string_fragment(view), is_string(true) {}
 
@@ -307,7 +326,7 @@ public:
 };
 
 class Token {
-    Span span;
+    Span span_;
     TokenKind kind_;
 
     /// The payload of the token. Contents are determined by the kind.
@@ -319,7 +338,7 @@ class Token {
     >> payload;
 public:
     explicit Token(Span span, TokenKind kind)
-        : span(span), kind_(kind), payload(std::nullopt) {}
+        : span_(span), kind_(kind), payload(std::nullopt) {}
 
     static Token fstring(
         Span span,
@@ -340,7 +359,7 @@ public:
 
     [[nodiscard]]
     constexpr inline std::string_view lexeme() const {
-        return span.slice();
+        return span_.slice();
     }
 
     [[nodiscard]]
@@ -349,8 +368,23 @@ public:
     }
 
     [[nodiscard]]
+    inline std::string_view get_lua_payload() const {
+        return std::get<std::string_view>(payload.value());
+    }
+
+    [[nodiscard]]
+    inline std::vector<FStringFragment>& get_fstring_payload() {
+        return std::get<std::vector<FStringFragment>>(payload.value());
+    }
+
+    [[nodiscard]]
     constexpr inline TokenKind kind() const noexcept {
         return kind_;
+    }
+
+    [[nodiscard]]
+    constexpr inline const Span& span() const noexcept {
+        return span_;
     }
 
     static const std::unordered_map<std::string_view, TokenKind> KEYWORDS;
@@ -803,140 +837,263 @@ const std::unordered_map<std::string_view, TokenKind> Token::KEYWORDS = {
 
 namespace ast {
 struct Visitor;
+struct AST;
+struct Expr;
+struct Stmt;
+struct Literal;
+struct Len;
+struct LuaBlock;
+struct Variable;
+struct GeneratedVariable;
+struct FString;
+struct Get;
+struct GetItem;
+struct Call;
+struct Unary;
+struct Binary;
+struct Grouping;
+struct ArrayLiteral;
+struct DictLiteral;
+struct Lambda;
+struct ExprStmt;
+struct Range;
+struct If;
+struct For;
+struct While;
+struct Block;
+struct StmtSequence;
+struct Return;
+struct FuncDecl;
+struct VarDecl;
+struct Assignment;
+struct Break;
 
 struct Node {
     virtual void accept(Visitor& visitor) = 0;
 };
-
 struct Stmt : public Node {};
-
 struct Expr : public Node {};
+
+using ExprPtr = std::unique_ptr<Expr>;
+using StmtPtr = std::unique_ptr<Stmt>;
+
+struct Visitor {
+    virtual void visit(AST& ast)  = 0;
+    virtual void visit(Expr& expr) = 0;
+    virtual void visit(Stmt& stmt) = 0;
+    virtual void visit(Literal& lit) = 0;
+    virtual void visit(Len& len) = 0;
+    virtual void visit(LuaBlock& block) = 0;
+    virtual void visit(Variable& var) = 0;
+    virtual void visit(GeneratedVariable& var) = 0;
+    virtual void visit(FString& fstring) = 0;
+    virtual void visit(Get& get) = 0;
+    virtual void visit(GetItem& get) = 0;
+    virtual void visit(Call& call) = 0;
+    virtual void visit(Unary& unary) = 0;
+    virtual void visit(Binary& binary) = 0;
+    virtual void visit(Grouping& grouping) = 0;
+    virtual void visit(ArrayLiteral& arr) = 0;
+    virtual void visit(DictLiteral& dict) = 0;
+    virtual void visit(Lambda& lambda) = 0;
+    virtual void visit(ExprStmt& expr) = 0;
+    virtual void visit(If& conditional) = 0;
+    virtual void visit(For& loop) = 0;
+    virtual void visit(While& loop) = 0;
+    virtual void visit(Block& block) = 0;
+    virtual void visit(StmtSequence& seq) = 0;
+    virtual void visit(Return& ret) = 0;
+    virtual void visit(FuncDecl& decl) = 0;
+    virtual void visit(VarDecl& decl) = 0;
+    virtual void visit(Assignment& ass) = 0;
+    virtual void visit(Break& break_) = 0;
+};
+
+template<class Base, class Derived>
+struct Visitable : public Base {
+    Visitable() : Base() {}
+    void accept(Visitor& visitor) override {
+        static_assert(
+            std::is_base_of_v<Visitable<Base, Derived>, Derived>,
+            "Derived must derive from Visitable<Base, Derived>"
+        );
+        visitor.visit(*static_cast<Derived*>(this));
+    }
+};
 
 struct FunctionData {
     std::optional<std::string_view> name;
-    std::vector<Expr> params;
-    std::unique_ptr<Stmt> body;
+    std::vector<ExprPtr> params;
+    StmtPtr body;
 };
 
-struct Literal : public Expr {
+struct Literal : public Visitable<Expr, Literal> {
     std::string_view value;
+    explicit Literal(std::string_view value) : Visitable(), value(value) {};
 };
 
-struct Len : public Expr {
-    std::unique_ptr<Expr> expr;
+struct Len : public Visitable<Expr, Len> {
+    ExprPtr expr;
+    explicit Len(ExprPtr expr) : Visitable(), expr(std::move(expr)) {};
 };
 
-struct LuaBlock : public Expr {
+struct LuaBlock : public Visitable<Expr, LuaBlock> {
     std::string_view contents;
+    explicit LuaBlock(std::string_view contents) : Visitable(), contents(contents) {};
 };
 
-struct Variable : public Expr {
+struct Variable : public Visitable<Expr, Variable> {
     std::string_view name;
+    explicit Variable(std::string_view name) : Visitable(), name(name) {};
 };
 
-struct GeneratedVariable : public Expr {
+struct GeneratedVariable : public Visitable<Expr, GeneratedVariable> {
     std::string name;
+    explicit GeneratedVariable(std::string&& name) : Visitable(), name(std::move(name)) {};
 };
 
-struct Param : public Expr {
-    std::string_view name;
+struct FString : public Visitable<Expr, FString> {
+     std::vector<ExprPtr> fragments;
+     explicit FString(std::vector<ExprPtr>&& fragments) : Visitable(), fragments(std::move(fragments)) {}
 };
 
-struct FString : public Expr {
-     std::vector<Expr> fragments;
-}
-
-struct Get : public Expr {
-    std::unique_ptr<Expr> obj;
+struct Get : public Visitable<Expr, Get> {
+    ExprPtr obj;
     std::string_view attr;
     bool is_static;
+    explicit Get(ExprPtr obj, std::string_view attr, bool is_static)
+        : Visitable(), obj(std::move(obj)), attr(attr), is_static(is_static) { }
 };
 
-struct GetItem : public Expr {
-    std::unique_ptr<Expr> obj;
-    std::unique_ptr<Expr> item;
+struct GetItem : public Visitable<Expr, GetItem> {
+    ExprPtr obj;
+    ExprPtr item;
+    explicit GetItem(ExprPtr obj, ExprPtr item)
+        : Visitable(), obj(std::move(obj)), item(std::move(item)) {}
 };
 
-struct Call : public Expr {
-    std::unique_ptr<Expr> callee;
-    std::vector<Expr> args;
+struct Call : public Visitable<Expr, Call> {
+    ExprPtr callee;
+    std::vector<ExprPtr> args;
+    explicit Call(ExprPtr callee, std::vector<ExprPtr>&& args)
+        : Visitable(), callee(std::move(callee)), args(std::move(args)) {}
 };
 
-struct Unary : public Expr {
+struct Unary : public Visitable<Expr, Unary> {
     std::string_view op;
-    std::unique_ptr<Expr> operand;
+    ExprPtr operand;
+
+    explicit Unary(std::string_view op, ExprPtr operand)
+        : Visitable(), op(op), operand(std::move(operand)) {}
 };
 
-struct Grouping : public Expr {
-    std::unique_ptr<Expr> expr;
+struct Grouping : public Visitable<Expr, Grouping> {
+    ExprPtr expr;
+    explicit Grouping(ExprPtr expr) : Visitable(), expr(std::move(expr)) {}
 };
 
-struct Binary : public Expr {
+struct Binary : public Visitable<Expr, Binary> {
     std::string_view op;
-    std::unique_ptr<Expr> left;
-    std::unique_ptr<Expr> right;
+    ExprPtr left;
+    ExprPtr right;
+    explicit Binary(std::string_view op, ExprPtr left, ExprPtr right)
+        : Visitable(), op(op), left(std::move(left)), right(std::move(right)) {}
 };
 
-struct ArrayLiteral : public Expr {
-    std::vector<Expr> values;
+struct ArrayLiteral : public Visitable<Expr, ArrayLiteral> {
+    std::vector<ExprPtr> values;
+    explicit ArrayLiteral(std::vector<ExprPtr>&& values) : Visitable(), values(std::move(values)) {}
 };
 
-struct DictLiteral : public Expr {
-    std::vector<std::pair<Expr, Expr>> pairs;
+struct DictLiteral : public Visitable<Expr, DictLiteral> {
+    std::vector<std::pair<ExprPtr, ExprPtr>> pairs;
+    explicit DictLiteral(std::vector<std::pair<ExprPtr, ExprPtr>>&& pairs)
+        : Visitable(), pairs(std::move(pairs)) {}
 };
 
-struct Lambda : public Expr {
-    FunctionData lambda;
+struct Lambda : public Visitable<Expr, Lambda> {
+    FunctionData data;
+    explicit Lambda(FunctionData&& data) : Visitable(), data(std::move(data)) {}
 };
 
-struct ExprStmt : public Stmt {
-    std::unique_ptr<Expr> expr;
+struct ExprStmt : public Visitable<Stmt, ExprStmt> {
+    ExprPtr expr;
+    explicit ExprStmt(ExprPtr expr) : Visitable(), expr(std::move(expr)) {}
 };
 
-struct If : public Stmt {
-    std::unique_ptr<Expr> condition;
-    std::unique_ptr<Stmt> then;
-    std::optional<std::unique_ptr<Expr>> otherwise;
+struct If : public Visitable<Stmt, If> {
+    ExprPtr condition;
+    StmtPtr then;
+    std::optional<StmtPtr> otherwise;
+
+    explicit If(ExprPtr condition, StmtPtr then, std::optional<StmtPtr> otherwise)
+        : Visitable(),
+          condition(std::move(condition)), then(std::move(then)), otherwise(std::move(otherwise)) {}
 };
 
 struct Range {
-    constants::PPGANumber start;
-    constants::PPGANumber end;
-    constants::PPGANumber step;
+    std::string_view start;
+    std::string_view end;
+    std::string_view step;
 };
 
-struct For : public Stmt {
+struct For : public Visitable<Stmt, For> {
     bool is_fori;
-    std::vector<Expr> vars;
+    std::vector<ExprPtr> vars;
     std::variant<
         Range, // A range
-        std::vector<Expr> // A sequence of expressions
+        std::vector<ExprPtr> // A sequence of expressions
     > condition;
+    StmtPtr body;
+
+    explicit For(
+        bool is_fori,
+        std::vector<ExprPtr>&& vars,
+        std::variant<Range, std::vector<ExprPtr>>&& condition,
+        StmtPtr body
+    ) : Visitable(), is_fori(is_fori), vars(std::move(vars)),
+        condition(std::move(condition)), body(std::move(body)) {}
 };
 
-struct While : public Stmt {
-    std::unique_ptr<Expr> condition;
-    std::unique_ptr<Stmt> body;
+struct While : public Visitable<Stmt, While> {
+    ExprPtr condition;
+    StmtPtr body;
+
+    explicit While(ExprPtr condition, StmtPtr body)
+        : Visitable(), condition(std::move(condition)), body(std::move(body)) {}
 };
 
-struct Block : public Stmt {
-    std::vector<Expr> statements;
+struct Block : public Visitable<Stmt, Block> {
+    std::vector<StmtPtr> statements;
     bool is_standalone;
+
+    explicit Block(std::vector<StmtPtr>&& statements, bool is_standalone)
+        : Visitable(), statements(std::move(statements)), is_standalone(is_standalone) {}
 };
 
 /// Used for inserting multiple statements without generating a block.
-struct StmtSequence : public Stmt {
-    std::vector<Expr> statements;
+struct StmtSequence : public Visitable<Stmt, StmtSequence> {
+    std::vector<ExprPtr> statements;
+
+    explicit StmtSequence(std::vector<ExprPtr>&& statements)
+        : Visitable(), statements(std::move(statements)) {}
 };
 
-struct Return: public Stmt {
-    std::vector<Expr> values;
+struct Return: public Visitable<Stmt, Return> {
+    std::vector<ExprPtr> values;
+    explicit Return(std::vector<ExprPtr>&& values) : Visitable(), values(std::move(values)) {}
 };
 
-struct Assignment: public Stmt {
-    std::vector<Expr> vars;
+struct Assignment: public Visitable<Stmt, Assignment> {
     std::string_view op;
-    std::unique_ptr<Expr> value;
+    std::vector<ExprPtr> vars;
+    ExprPtr value;
+    explicit Assignment(std::string_view op, std::vector<ExprPtr>&& vars, ExprPtr value)
+        : Visitable(), op(op), vars(std::move(vars)), value(std::move(value)) {}
+};
+
+struct Break: public Visitable<Stmt, Break> {
+    explicit Break() : Visitable() {}
 };
 
 enum class VarKind {
@@ -944,15 +1101,20 @@ enum class VarKind {
     Global
 };
 
-struct FuncDecl : public Stmt {
+struct FuncDecl : public Visitable<Stmt, FuncDecl> {
     FunctionData data;
     VarKind kind;
+    explicit FuncDecl(FunctionData&& data, VarKind kind)
+        : Visitable(), data(std::move(data)), kind(kind) {}
 };
 
-struct VarDecl : public Stmt {
+struct VarDecl : public Visitable<Stmt, VarDecl> {
     VarKind kind;
     std::vector<std::string> names;
-    std::optional<std::unique_ptr<Expr>> initializer;
+    std::optional<ExprPtr> initializer;
+
+    explicit VarDecl(VarKind kind, std::vector<std::string>&& names, std::optional<ExprPtr> initializer)
+        : Visitable(), kind(kind), names(std::move(names)), initializer(std::move(initializer)) {}
 };
 
 enum class MatchPatKind {
@@ -966,31 +1128,826 @@ enum class MatchPatKind {
 
 struct AST  {
     PPGAConfig config;
-    std::vector<Stmt> statements;
+    std::vector<StmtPtr> statements;
 };
 
-struct Visitor {
-    virtual void visit(AST& ast)  = 0;
-    virtual void visit(Expr& expr) { expr.accept(*this); }
-    virtual void visit(Stmt& stmt) { stmt.accept(*this); }
-    virtual void visit(If& stmt) = 0;
-    virtual void visit(Literal& lit) = 0;
-    virtual void visit(ExprStmt& stmt) = 0;
+template <typename>
+struct deduce_arg_type;
+
+template <typename Return, typename X, typename T>
+struct deduce_arg_type<Return (X::*)(T) const> {
+    using type = T;
+    using return_type = Return;
 };
+
+template <typename F>
+using arg_type = typename deduce_arg_type<decltype(&F::operator())>::type;
+
+template <typename F>
+using return_type = typename deduce_arg_type<decltype(&F::operator())>::return_type;
+
+template <typename Base, typename F, typename Return = std::optional<return_type<std::decay_t<F&&>>>>
+constexpr inline Return attempt(Base*& ptr, F&& f) {
+    using f_type = std::decay_t<decltype(f)>;
+    using p_type = arg_type<f_type>;
+    if (auto cp = dynamic_cast<p_type>(ptr); cp != nullptr) {
+        return std::optional(std::forward<decltype(f)>(f)(cp));
+    }
+    return std::nullopt;
 }
 
+/// I = len(Fs), we've run out of tuple elements
+template <std::size_t I = 0, typename Base, typename Return, typename... Fs>
+constexpr inline std::optional<typename std::enable_if<I == sizeof...(Fs), Return>::type>
+_dynamic_visitor_tup(Base*, std::tuple<Fs&...>&) {
+    return std::nullopt;
+}
+
+template <std::size_t I = 0, typename Base, typename Return, typename... Fs>
+constexpr inline std::optional<typename std::enable_if<I < sizeof...(Fs), Return>::type>
+_dynamic_visitor_tup(Base* ptr, std::tuple<Fs&...>& t) {
+    auto fn = std::get<I>(t);
+    auto result = attempt(ptr, fn);
+    if (result.has_value()) {
+        return result;
+    }
+    return _dynamic_visitor_tup<I + 1, Base, Return, Fs...>(ptr, t);
+}
+
+template <typename Return, typename Base, typename... Fs>
+constexpr inline std::optional<Return> dynamic_visitor(Base* ptr, Fs... fs) {
+    auto t = std::forward_as_tuple(fs...);
+    return _dynamic_visitor_tup<0, Base, Return, Fs...>(ptr, t);
+}
+} // ast
+
 namespace parser {
+using namespace lexer;
+
+template<typename T>
+using optional_ref = std::optional<std::reference_wrapper<T>>;
+
+template<typename T>
+constexpr inline optional_ref<T> make_optional_ref(T& value) {
+    return std::optional{std::ref(value) };
+}
+
+/// This is an internal exception. Outside code should never encounter it.
+struct parser_exception : public std::logic_error {
+    explicit parser_exception() : std::logic_error("") {}
+};
+
+
 class Parser {
     std::vector<lexer::Token> tokens;
     size_t current;
     ppga::PPGAConfig config;
+    error::ErrCtx ex;
 
 public:
     Parser(std::vector<lexer::Token>&& tokens, PPGAConfig config)
     : tokens(std::move(tokens)), current(0), config(config) {}
 
-    std::optional<ast::AST> parse(error::ErrCtx& ex) {
+    std::optional<ast::AST> parse(error::ErrCtx& user_ex) {
+        auto statements = std::vector<ast::StmtPtr>();
+
+        while (!is_at_end()) {
+            try {
+                statements.push_back(statement());
+            } catch (parser_exception& ignored) {
+                synchronize();
+                user_ex.extend(this->ex);
+            }
+        }
+
+        return user_ex.had_error() ? std::nullopt
+            : std::optional(ast::AST { this->config, std::move(statements) });
+    }
+
+private:
+    ast::StmtPtr statement() {
+        if (match<TokenKind::Let, TokenKind::Global>()) {
+            return var_declaration();
+        } else if (match<TokenKind::LeftBrace>()) {
+            return block(true);
+        } else if (match<TokenKind::Fn>()) {
+            auto name = consume_identifier("Expected a function name after the keyword.");
+            auto fn = lambda();
+            fn.name = name;
+            return std::make_unique<ast::FuncDecl>(fn, ast::VarKind::Local);
+        }else if (match<TokenKind::If>()) {
+            return if_statement();
+        } else if (match<TokenKind::Match>()) {
+            return match_statement();
+        } else if (match<TokenKind::For>()) {
+            return for_statement(false);
+        } else if (match<TokenKind::ForI>()) {
+            return for_statement(true);
+        } else if (match<TokenKind::While>()) {
+            return while_statement();
+        } else if (match<TokenKind::Return>()) {
+            auto expr = std::make_unique<ast::Return>(arguments(TokenKind::Semicolon));
+            try_consume_semicolon("Expected a `;` after `return`");
+            return expr;
+        } else if (match<TokenKind::Break>()) {
+            try_consume_semicolon("Expected a `;` after `break`");
+            return std::make_unique<ast::Break>();
+        }
+        auto stmt = assignment();
+        if (dynamic_cast<ast::ExprStmt*>(stmt.get()) == nullptr) {
+            try_consume_semicolon("Expected a `;` after the expression");
+        }
+        return stmt;
+    }
+
+    ast::StmtPtr var_declaration() {
+
+    }
+
+    ast::StmtPtr block(bool is_standalone) {
+        std::vector<ast::StmtPtr> statements{};
+        while (!check(TokenKind::RightBrace) && !is_at_end()) {
+            try {
+                statements.push_back(statement());
+            } catch (parser_exception&) {
+                synchronize();
+            }
+        }
+        consume(TokenKind::RightBrace, "Expected a `}` after the block");
+        return std::make_unique<ast::Block>(std::move(statements), is_standalone);
+    }
+
+    ast::StmtPtr if_statement() {
+        auto condition = expression();
+        try_consume(TokenKind::LeftBrace, "Expected a `{` after the if condition");
+        auto then = block(false);
+        std::optional<ast::StmtPtr> otherwise{};
+
+        if (match<TokenKind::Else>()) {
+            if (match<TokenKind::If>()) {
+                otherwise = if_statement();
+            } else {
+                try_consume(TokenKind::LeftBrace, "Expected `{` or an `if` after the `else`.");
+                otherwise = block(false);
+            }
+        }
+
+       return std::make_unique<ast::If>(std::move(condition), std::move(then), std::move(otherwise));
+    }
+
+    ast::StmtPtr match_statement() {
+        auto keyword = previous();
+        auto value = expression();
+        ast::ExprPtr bound_var;
+
+        if (match<TokenKind::As>()) {
+            consume_identifier("Expected a bound variable name after the `as`.");
+            bound_var = make_var(previous().lexeme());
+        } else if (auto var = dynamic_cast<ast::Variable*>(value.get()); var != nullptr) {
+            bound_var = make_var(var->name);
+        } else {
+            std::ostringstream ss;
+            ss << "_mbound_L" << keyword.span().line << "S" << keyword.span().start;
+            bound_var = make_owned_var(ss.str());
+        }
+
+        consume(TokenKind::LeftBrace, "Expected a `{` after the match value.");
+
+        std::vector<ast::StmtPtr> arms;
+        std::optional<ast::StmtPtr> any_arm;
+        bool any_arm_last = false;
+        std::optional<lexer::Span> any_arm_span = std::nullopt;
+
+        while (!check(TokenKind::RightBrace)) {
+            any_arm_last = false;
+            auto pattern = expression();
+            ast::MatchPatKind kind;
+
+            if (auto var = dynamic_cast<ast::Variable*>(pattern.get()); var != nullptr && var->name == "_") {
+                any_arm_span = previous().span();
+                kind = ast::MatchPatKind::Else;
+            } else if (var != nullptr) {
+                kind = infer_pattern_kind(var->name, *pattern);
+            } else if (auto gen_bound = dynamic_cast<ast::GeneratedVariable*>(bound_var.get()); gen_bound != nullptr) {
+                kind = infer_pattern_kind(gen_bound->name, *pattern);
+            } else {
+                assert(false && "This branch is not supposed to be taken.");
+            }
+
+            consume(TokenKind::LeftBrace, "Expected a `{` after the arm pattern.");
+            auto body = block(false);
+            switch (kind) {
+                case ast::MatchPatKind::Value:
+                    arms.push_back(std::make_unique<ast::If>(std::move(pattern), std::move(body), std::nullopt));
+                    break;
+                case ast::MatchPatKind::Comparison:
+                    arms.push_back(std::make_unique<ast::If>(
+                        std::make_unique<ast::Binary>("=="sv, std::move(pattern), std::move(bound_var)),
+                        std::move(body),
+                        std::nullopt
+                    ));
+                    break;
+                case ast::MatchPatKind::Else:
+                    if (any_arm.has_value()) {
+                        error("Only one wildcard arm `_` may be present in a single match statement.");
+                        throw parser_exception();
+                    } else {
+                        any_arm_last = true;
+                        any_arm = std::move(body);
+                    }
+                    break;
+            }
+        }
+
+        consume(TokenKind::RightBrace, "Expected a `}` after the match statement");
+
+        if (any_arm.has_value() && !any_arm_last) {
+            error("The wildcard arm `_` must be the last arm.");
+            throw parser_exception();
+        }
+
+        // Build a chain of if statements from the arms
+        std::optional<ast::StmtPtr> stmt = std::nullopt;
+        for (auto it = arms.rbegin(); it != arms.rend(); ++it) {
+            if (any_arm.has_value()) {
+                any_arm.swap(stmt);
+            }
+
+            if (stmt.has_value()) {
+                auto maybe_if = dynamic_cast<ast::If*>(it->get());
+                assert(maybe_if != nullptr && "An arm must always have a value");
+                stmt.swap(maybe_if->otherwise);
+            } else {
+                stmt = std::move(*it);
+            }
+        }
+
+        if (!stmt.has_value()) {
+            error(keyword.span(), "A match statement must have at least one arm.");
+            throw parser_exception();
+        }
+
+        return std::make_unique<ast::Block>(std::vector<ast::StmtPtr> {
+            std::make_unique<ast::VarDecl>(
+                ast::VarKind::Local,
+                std::vector<std::string> { extract_var_name(bound_var) },
+                std::move(value)),
+            std::move(stmt.value())
+        },true);
+    }
+
+    /// Infers the kind of the given pattern. All patterns that mention the bound variable are value patterns,
+    /// all other patterns are comparison patterns.
+    ast::MatchPatKind infer_pattern_kind(std::string_view var, ast::Expr& expr) {
+        return ast::dynamic_visitor<ast::MatchPatKind>(
+            &expr,
+            [&var](const ast::Variable* v) {
+                return v->name == var ? ast::MatchPatKind::Value : ast::MatchPatKind::Comparison;
+            },
+            [&var](const ast::GeneratedVariable* v) {
+                return v->name == var ? ast::MatchPatKind::Value : ast::MatchPatKind::Comparison;
+            },
+            [&var, this](const ast::GetItem* item) {
+                return (is_value_pat(infer_pattern_kind(var, *item->obj)) ||
+                        is_value_pat(infer_pattern_kind(var, *item->item)))
+                        ? ast::MatchPatKind::Value : ast::MatchPatKind::Comparison;
+            },
+            [&var, this](const ast::Call* call) {
+                if (is_value_pat(infer_pattern_kind(var, *call->callee))) {
+                    return ast::MatchPatKind::Value;
+                }
+                for (const auto& arg : call->args) {
+                    if (is_value_pat(infer_pattern_kind(var, *arg))) {
+                        return ast::MatchPatKind::Value;
+                    }
+                }
+                return ast::MatchPatKind::Comparison;
+            },
+            [&var, this](const ast::Unary* unary) {
+                return infer_pattern_kind(var, *unary->operand);
+            },
+            [&var, this](const ast::Binary* bin) {
+                return (is_value_pat(infer_pattern_kind(var, *bin->left)) ||
+                        is_value_pat(infer_pattern_kind(var, *bin->right)))
+                       ? ast::MatchPatKind::Value : ast::MatchPatKind::Comparison;
+            }
+        ).value_or(ast::MatchPatKind::Comparison);
+    }
+
+    static inline bool is_value_pat(ast::MatchPatKind pat) {
+        return pat == ast::MatchPatKind::Value;
+    }
+
+    static std::string extract_var_name(ast::ExprPtr& expr) {
+        auto var = dynamic_cast<ast::Variable*>(expr.get());
+        if (var != nullptr) {
+            return std::string(var->name);
+        }
+        auto gen_var = dynamic_cast<ast::GeneratedVariable*>(expr.get());
+        if (gen_var != nullptr) {
+            return gen_var->name;
+        }
+        assert(false && "Attempted to extract a variable name from a non-variable AST node.");
+    }
+
+    ast::StmtPtr for_statement(bool is_fori) {
+        std::vector<ast::ExprPtr> vars = parameters();
+        if (vars.empty()) {
+            error(previous(), "Expected an identifier after the loop keyword");
+            throw parser_exception();
+        }
+        consume(TokenKind::In, "Expected an `in` after the loop variables");
+
+        std::variant<ast::Range, std::vector<ast::ExprPtr>> condition;
+        if (match<TokenKind::Range>()) {
+            condition = range();
+            if (is_fori) {
+                error(previous(), "A range cannot be used with a fori loop.");
+                throw parser_exception();
+            }
+        } else {
+            condition = arguments(TokenKind::LeftBrace);
+        }
+
+        try_consume(TokenKind::LeftBrace, "Expected a `{` after the loop condition");
+        return std::make_unique<ast::For>(
+            is_fori,
+            std::move(vars),
+            std::move(condition),
+            block(false)
+        );
+    }
+
+    ast::Range range() {
+        try_consume(TokenKind::LeftParen, "Expected a `(` after `range`");
+        auto step = "1"sv;
+        auto start = "2"sv;
+        auto end = consume(TokenKind::Number, "Expected a range stop value.").lexeme();
+        if (match<TokenKind::Comma>()) {
+            start = end;
+            end = consume(TokenKind::Number, "Expected a range stop value").lexeme();
+        }
+        if (match<TokenKind::Comma>()) {
+            step = consume(TokenKind::Number, "Expected a range step value").lexeme();
+        }
+        consume(TokenKind::RightParen, "Expected a `)` after the arguments");
+        return ast::Range { start, end, step };
+    }
+
+    ast::StmtPtr while_statement() {
+        auto condition = expression();
+        try_consume(TokenKind::LeftBrace, "Expected a `{` after the loop condition");
+        return std::make_unique<ast::While>(std::move(condition), block(false));
+    }
+
+    ast::StmtPtr assignment() {
+        auto exprs = std::vector<ast::ExprPtr> { expression() };
+
+        while (match<TokenKind::Comma>()) {
+            exprs.push_back(expression());
+        }
+
+        if (match<TokenKind::Equal,
+                 TokenKind::PlusEqual,
+                 TokenKind::StarEqual,
+                 TokenKind::SlashEqual,
+                 TokenKind::PowEqual>())
+        {
+            auto span = previous().span();
+            auto op = previous().lexeme();
+            for (const auto& expr : exprs) {
+                // Only variables, attr.accesses, and item[accesses] may be assigned to.
+                if (
+                    dynamic_cast<ast::Variable*>(expr.get()) == nullptr
+                    && dynamic_cast<ast::Get*>(expr.get()) == nullptr
+                    && dynamic_cast<ast::GetItem*>(expr.get()) == nullptr
+                ) {
+                    ex.error(span, "Invalid assignment target");
+                    throw parser_exception();
+                }
+            }
+            return std::make_unique<ast::Assignment>(op, std::move(exprs), expression());
+        }
+
+        if (exprs.size() > 1) {
+            ex.error(
+                previous().span(),
+                "Comma is allowed only in let/global, assignment, and return statements."
+            );
+            throw parser_exception();
+        }
+
+        return std::make_unique<ast::ExprStmt>(std::move(exprs.at(0)));
+    }
+
+    ast::ExprPtr expression() {
+        if (match<TokenKind::Fn>()) {
+            return std::make_unique<ast::Lambda>(lambda());
+        }
+        return default_op();
+    }
+
+    ast::ExprPtr default_op() {
+        auto expr = logic_or();
+
+        while (match<TokenKind::DoubleQuery>()) {
+            auto right = logic_or();
+            ast::ExprPtr callee = std::make_unique<ast::Variable>(
+                std::string_view(constants::DEFAULT_OP_NAME)
+            );
+            auto args = std::vector<ast::ExprPtr> { std::move(expr), std::move(right) };
+            expr = std::make_unique<ast::Call>(std::move(callee), std::move(args));
+        }
+
+        return expr;
+    }
+
+    ast::ExprPtr logic_or() {
+        return parse_binary<&Parser::logic_and, TokenKind::Or>();
+    }
+
+    ast::ExprPtr logic_and() {
+        return parse_binary<&Parser::equality, TokenKind::And>();
+    }
+
+    ast::ExprPtr equality() {
+        return parse_binary<&Parser::comparison, TokenKind::Ne, TokenKind::Eq>();
+    }
+
+    ast::ExprPtr comparison() {
+        return parse_binary<&Parser::addition, TokenKind::Lt, TokenKind::Le, TokenKind::Gt, TokenKind::Ge>();
+    }
+
+    ast::ExprPtr addition() {
+        return parse_binary<&Parser::multiplication, TokenKind::Plus, TokenKind::Minus, TokenKind::DoubleDot>();
+    }
+
+    // TODO: remember to fix the backslash operator
+    ast::ExprPtr multiplication() {
+        return parse_binary<
+                &Parser::exponentiation,
+                TokenKind::Star,
+                TokenKind::Slash,
+                TokenKind::BackSlash,
+                TokenKind::Percent
+        >();
+    }
+
+    ast::ExprPtr exponentiation() {
+        return parse_binary<&Parser::unary, &Parser::exponentiation, TokenKind::Pow>();
+    }
+
+    ast::ExprPtr unary() {
+        if (match<TokenKind::Minus, TokenKind::Not, TokenKind::Ellipsis>()) {
+            auto op = previous().lexeme();
+            auto value = unary();
+            return std::make_unique<ast::Unary>(op, std::move(value));
+        }
+
+        return call();
+    }
+
+    ast::ExprPtr call() {
+        auto expr = match<TokenKind::Len>() ? finish_len() : primary();
+
+        while (match<TokenKind::LeftParen, TokenKind::Dot, TokenKind::Colon, TokenKind::LeftBracket>()) {
+            auto kind = previous().kind();
+            switch (kind) {
+                case TokenKind::LeftParen:
+                    expr = finish_call(std::move(expr));
+                    break;
+                case TokenKind::LeftBracket:
+                    expr = finish_item(std::move(expr));
+                    break;
+                default:
+                    expr = finish_attr(std::move(expr), kind == TokenKind::Colon);
+            }
+
+            while (check(TokenKind::Identifier)) {
+                if (peek().lexeme() != "err") {
+                    break;
+                }
+                auto _err = advance();
+                try_consume(TokenKind::LeftBrace, "Expected a `{` after the `err` in an err block");
+                auto body = block(false);
+                // Generate an err block
+                ast::ExprPtr callback = std::make_unique<ast::Lambda>(ast::FunctionData {
+                    std::nullopt,
+                    std::vector<ast::ExprPtr> { make_owned_var("err") },
+                    std::move(body)
+                });
+                expr = std::make_unique<ast::Call>(
+                    make_var(std::string_view(constants::ERR_HANDLER_NAME)),
+                    std::vector<ast::ExprPtr>{
+                        std::move(callback),
+                        std::move(expr)
+                    }
+                );
+            }
+        }
+
+        return expr;
+    }
+
+    ast::ExprPtr primary() {
+        auto token = advance();
+
+        ast::ExprPtr expr;
+        switch (token.kind()) {
+            case TokenKind::Nil:
+            case TokenKind::True:
+            case TokenKind::False:
+            case TokenKind::StringLiteral: [[fallthrough]];
+            case TokenKind::Number:{
+                expr = std::make_unique<ast::Literal>(token.lexeme());
+                break;
+            }
+            case TokenKind::Identifier: {
+                expr = make_var(token.lexeme());
+                break;
+            }
+            case TokenKind::Variadics: {
+                expr = make_var("...");
+                break;
+            }
+            case TokenKind::LeftParen: {
+                auto grouping = std::make_unique<ast::Grouping>(expression());
+                try_consume(TokenKind::RightParen, "Expected a `)` after the expression");
+                break;
+            }
+            case TokenKind::LeftBracket: {
+                expr = std::make_unique<ast::ArrayLiteral>(arguments(TokenKind::RightBracket));
+                try_consume(TokenKind::RightBracket, "Expected a `]` at the end of the array literal.");
+                break;
+            }
+            case TokenKind::LeftBrace: {
+                expr = std::make_unique<ast::DictLiteral>(pairs());
+                try_consume(TokenKind::RightBrace, "Expected a `}` at the end of the dict literal");
+                break;
+            }
+            case TokenKind::FString: {
+                expr = finish_fstring(token.get_fstring_payload());
+                break;
+            }
+            case TokenKind::Lua: {
+                expr = std::make_unique<ast::LuaBlock>(token.get_lua_payload());
+                break;
+            }
+            case TokenKind::EndOfFile: {
+                std::stringstream s;
+                s << "Reached the end of the script, last see token was "
+                  << previous().kind() << " `" <<  previous().lexeme() << "`";
+                error(s.str());
+                throw parser_exception();
+            }
+            default: {
+                std::stringstream s;
+                s << "Unexpected symbol " << token.kind();
+                error(s.str());
+                throw parser_exception();
+            }
+        }
+
+        return expr;
+    }
+
+    ast::ExprPtr finish_fstring(std::vector<FStringFragment>& frags) {
+        std::vector<ast::ExprPtr> exprs{};
+
+        for (const auto& frag : frags) {
+            if (frag.is_string) {
+                // Skip empty strings
+                if (frag.string_fragment.empty()) continue;
+                exprs.push_back(std::make_unique<ast::Literal>(frag.string_fragment));
+            } else {
+                std::vector<Token> tokens_ = frag.inner_tokens;
+                Parser parser = Parser(std::move(tokens_), config);
+                try {
+                    exprs.push_back(parser.expression());
+                } catch (parser_exception&) {
+                    ex.extend(parser.ex);
+                }
+            }
+        }
+
+        return std::make_unique<ast::FString>(std::move(exprs));
+    }
+
+    ast::ExprPtr finish_call(ast::ExprPtr callee) {
+        std::vector<ast::ExprPtr> args;
+        if (!check(TokenKind::RightParen)) {
+            try {
+                args = arguments(TokenKind::RightParen);
+            } catch (parser_exception& e) {
+                try_consume(TokenKind::RightParen, "Expected a `)` after the argument list");
+                throw e;
+            }
+        } else {
+            args = std::vector<ast::ExprPtr>{};
+        }
+        try_consume(TokenKind::RightParen, "Expected a `)` after the argument list");
+        return std::make_unique<ast::Call>(std::move(callee), std::move(args));
+    }
+
+    std::vector<ast::ExprPtr> arguments(TokenKind stop) {
+        std::vector<ast::ExprPtr> args{};
+
+        if (!check(stop)) {
+            args.push_back(expression());
+        }
+
+        while (match<TokenKind::Comma>() && !check(stop)) {
+            args.push_back(expression());
+        }
+
+        return args;
+    }
+
+    std::vector<ast::ExprPtr> parameters() {
+        std::vector<ast::ExprPtr> params{};
+
+        if (!check(TokenKind::RightParen)) {
+            auto name = consume_identifier("Expected an identifier");
+            // XXX: the C++ version doesn't parse optional identifiers
+            // auto optional = match<TokenKind::Query>()
+            params.push_back(std::make_unique<ast::Variable>(name.lexeme()));
+        }
+
+        while (match<TokenKind::Comma>() && !check(TokenKind::RightParen)) {
+            auto name = consume_identifier("Expected an identifier");
+            params.push_back(std::make_unique<ast::Variable>(name.lexeme()));
+        }
+
+        return params;
+    }
+
+    std::vector<std::pair<ast::ExprPtr, ast::ExprPtr>> pairs() {
+        std::vector<std::pair<ast::ExprPtr, ast::ExprPtr>> pairs{};
+
+        if (!check(TokenKind::RightBrace)) {
+            auto key = expression();
+            try_consume(TokenKind::Equal, "Expected an `=` after the key");
+            auto value = expression();
+            pairs.emplace_back(std::move(key), std::move(value));
+        }
+
+        while (match<TokenKind::Comma>() && !check(TokenKind::RightBrace)) {
+            auto key = expression();
+            try_consume(TokenKind::Equal, "Expected an `=` after the key");
+            auto value = expression();
+            pairs.emplace_back(std::move(key), std::move(value));
+        }
+
+        return pairs;
+    }
+
+    ast::ExprPtr finish_len() {
+        try_consume(TokenKind::LeftParen, "Expected a `(` before the len argument");
+        auto expr = expression();
+        try_consume(TokenKind::RightParen, "Expected a `)` after the len argument");
+        return std::make_unique<ast::Len>(std::move(expr));
+    }
+
+    ast::ExprPtr finish_item(ast::ExprPtr obj) {
+        auto key = expression();
+        try_consume(TokenKind::RightBracket, "Expected a `]` after the item");
+        return std::make_unique<ast::GetItem>(std::move(obj), std::move(key));
+    }
+
+    ast::ExprPtr finish_attr(ast::ExprPtr obj, bool is_static) {
+        auto attr = consume_identifier("Expected an attribute name after the dot.");
+        return std::make_unique<ast::Get>(std::move(obj), attr.lexeme(), is_static);
+    }
+
+    static inline ast::ExprPtr make_var(std::string_view name) {
+        return std::make_unique<ast::Variable>(name);
+    }
+
+    static inline ast::ExprPtr make_owned_var(std::string&& name) {
+        return std::make_unique<ast::GeneratedVariable>(std::move(name));
+    }
+
+    Token& consume_identifier(std::string&& message) {
+        if (match<TokenKind::Variadics, TokenKind::Identifier>()) {
+            return previous();
+        }
+        error(std::move(message));
+        throw parser_exception();
+    }
+
+    template<ast::ExprPtr (Parser::*higher_prec_fn_left)(), ast::ExprPtr (Parser::*higher_prec_fn_right)(), TokenKind... kind>
+    inline ast::ExprPtr parse_binary() {
+        auto expr = (this->*higher_prec_fn_left)();
+
+        // XXX: Why does the rust version have this is_at_end() check?
+        while (match<kind...>() && !is_at_end()) {
+            auto op = previous().lexeme();
+            auto right = (this->*higher_prec_fn_right)();
+            expr = std::make_unique<ast::Binary>(op, std::move(expr), std::move(right));
+        }
+
+        return expr;
+    }
+
+    template<ast::ExprPtr (Parser::*higher_prec_fn)(), TokenKind... kind>
+    inline ast::ExprPtr parse_binary() {
+        return parse_binary<higher_prec_fn, higher_prec_fn, kind...>();
+    }
+
+    optional_ref<Token> try_consume_semicolon(std::string&& message) noexcept {
+        if (check(TokenKind::Semicolon)) {
+            while (match<TokenKind::Semicolon>()) {}
+            return make_optional_ref(previous());
+        }
+        error(std::move(message));
         return std::nullopt;
+    }
+
+    optional_ref<Token> try_consume(TokenKind kind, std::string&& message) noexcept {
+        if (check(kind)) {
+            return make_optional_ref(advance());
+        }
+        error(std::move(message));
+        return std::nullopt;
+    }
+
+    Token& consume(TokenKind kind, std::string&& message) {
+        auto value = try_consume(kind, std::move(message));
+        if (value.has_value()) {
+            return value.value();
+        }
+        throw parser_exception();
+    }
+
+    void synchronize() {
+        advance();
+        while (!is_at_end()) {
+            if (previous().kind() == lexer::TokenKind::Semicolon) {
+                return;
+            }
+            switch (peek().kind()) {
+                case lexer::TokenKind::Fn:
+                case lexer::TokenKind::Let:
+                case lexer::TokenKind::Global:
+                case lexer::TokenKind::For:
+                case lexer::TokenKind::ForI:
+                case lexer::TokenKind::If:
+                case lexer::TokenKind::While:
+                case lexer::TokenKind::Return:
+                    [[fallthrough]];
+                case lexer::TokenKind::LeftBrace:
+                    return;
+                default:
+                    advance();
+            }
+        }
+    }
+
+    [[nodiscard]]
+    inline bool check(lexer::TokenKind kind) const noexcept {
+        return peek().kind() == kind;
+    }
+
+    template<lexer::TokenKind... kinds>
+    bool match() noexcept {
+        auto curr = peek().kind();
+        if (((curr == kinds) || ...)) {
+            advance();
+            return true;
+        }
+        return false;
+    }
+
+    [[nodiscard]]
+    inline lexer::Token& previous() {
+        return tokens[current - 1];
+    }
+
+    inline lexer::Token& advance() noexcept {
+        if (current < tokens.size()) ++current;
+        return tokens[current];
+    }
+
+    [[nodiscard]]
+    inline const lexer::Token& peek() const noexcept {
+        return tokens[current];
+    }
+
+    [[nodiscard]]
+    inline bool is_at_end() const noexcept {
+        return peek().kind() == lexer::TokenKind::EndOfFile;
+    }
+
+    inline void error(std::string&& message) noexcept {
+        ex.error(peek().span(), std::move(message));
+    }
+
+    inline void error(const Token& token, std::string&& message) noexcept {
+        ex.error(token.span(), std::move(message));
+    }
+
+    inline void error(const Span& span, std::string&& message) noexcept {
+        ex.error(span, std::move(message));
     }
 };
 }
