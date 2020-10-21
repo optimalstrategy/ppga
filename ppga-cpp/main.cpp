@@ -7,7 +7,7 @@
 
 namespace fs = std::filesystem;
 
-std::string read_file(fs::path);
+std::string read_file(const fs::path&);
 
 int main() {
     auto source = read_file("../../tour.ppga");
@@ -19,7 +19,7 @@ int main() {
     return 0;
 }
 
-std::string read_file(fs::path path) {
+std::string read_file(const fs::path& path) {
     std::ifstream f(path, std::ios::in | std::ios::binary);
     const auto sz = fs::file_size(path);
 

@@ -15,7 +15,7 @@ std::string err_to_string(ppga::error::ErrCtx& ex) {
 }
 
 /// Test the lexer.
-TEST(LexerTest, TestTokensAreLexedCorrectly) {
+TEST(LexerTests, TestTokensAreLexedCorrectly) {
     auto source = "1 2. 3.141592 true false nil \"a string\" . .. ... @ ; : ,"
                   "( { [ ] } ) => ident range len fn ? ?? let global break as match and or in if else while for fori return "
                   "lua {} not + - * / \\ ** % += -= *= /= \\= **= %= < <= > >= == != =\n"
@@ -106,7 +106,7 @@ TEST(LexerTest, TestTokensAreLexedCorrectly) {
 }
 
 
-TEST(LexerTest, TestFStringScanning) {
+TEST(LexerTests, TestFStringScanning) {
     auto source = R"(f"an {interpolated + 1} \{and escaped} string")";
 
     auto ex = ppga::error::ErrCtx();
@@ -114,7 +114,6 @@ TEST(LexerTest, TestFStringScanning) {
     auto result = lexer.lex(ex);
 
     EXPECT_EQ(result.size(), 1);
-
     EXPECT_EQ(result[0].kind(), TokenKind::FString);
 
     auto& payload = result[0].get_fstring_payload();
