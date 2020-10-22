@@ -15,6 +15,11 @@
 #include <type_traits>
 #include <cassert>
 
+/// Enables debug checks and logging
+#ifndef PPGA_DEBUG
+#define PPGA_DEBUG 0
+#endif
+
 /// Enables parser logging
 #ifndef PPGA_PARSER_DEBUG
 #define PPGA_PARSER_DEBUG 0
@@ -27,13 +32,13 @@
 #endif
 
 #define PPGA_PARSER_LOG(name) \
-    if (PPGA_PARSER_DEBUG) { \
+    if (PPGA_DEBUG & PPGA_PARSER_DEBUG) { \
         std::cout << #name << ":\n    previous = "; \
         if (this->current > 0) std::cout << this->previous(); \
         else std::cout << "..."; \
         std::cout << "\n    current = " << this->peek() << std::endl; \
     }
-#define PPGA_PARSER_LOG_EXPR(expr) if (PPGA_PARSER_DEBUG) { std::cout << (expr) << std::endl; }
+#define PPGA_PARSER_LOG_EXPR(expr) if (PPGA_DEBUG && PPGA_PARSER_DEBUG) { std::cout << (expr) << std::endl; }
 
 namespace ppga {
 namespace constants {
@@ -921,6 +926,8 @@ struct Break;
 
 struct Node {
     virtual void accept(Visitor& visitor) = 0;
+    [[nodiscard]]
+    virtual std::string name() const { return typeid(*this).name(); };
 };
 struct Stmt : public Node {};
 struct Expr : public Node {};
@@ -968,6 +975,13 @@ struct Visitable : public Base {
             std::is_base_of_v<Visitable<Base, Derived>, Derived>,
             "Derived must derive from Visitable<Base, Derived>"
         );
+        if (PPGA_DEBUG) {
+            std::cout << "Visiting " << this << " " << this->name() << std::endl;
+            if (dynamic_cast<Derived*>(this) == nullptr) {
+                std::cerr << "Couldn't cast this = " << this << " to " << typeid(Derived).name() << std::endl;
+                std::abort();
+            }
+        }
         visitor.visit(*static_cast<Derived*>(this));
     }
 };
@@ -1436,8 +1450,6 @@ private:
             ok_name << query.span().line << "S" << query.span().start;
             std::ostringstream err_name("_err_L");
             err_name << query.span().line << "S" << query.span().start;
-            auto ok_var = make_owned_var(ok_name.str());
-            auto err_var = make_owned_var(err_name.str());
             std::vector<ast::ExprPtr> assignment_var;
             assignment_var.emplace_back(make_var(target_var));
 
@@ -1452,12 +1464,12 @@ private:
                     // Check if the error is `nil` and return the error if it is
                     std::make_unique<ast::If>(
                             std::make_unique<ast::Binary>(
-                                    "!=", std::move(err_var), std::make_unique<ast::Literal>("nil"sv)),
+                                    "!=", make_owned_var(err_name.str()), std::make_unique<ast::Literal>("nil"sv)),
                             std::make_unique<ast::Block>(utils::make_vector<ast::StmtPtr>(
                                 std::make_unique<ast::Return>(
                                     utils::make_vector<ast::ExprPtr>(
                                         std::make_unique<ast::Literal>("nil"sv),
-                                        std::move(err_var)
+                                        make_owned_var(err_name.str())
                                     )
                                 )
                             ), false),
@@ -1467,7 +1479,7 @@ private:
                     std::make_unique<ast::Assignment>(
                         "=",
                         std::move(assignment_var),
-                        std::move(ok_var)
+                        make_owned_var(ok_name.str())
                     )
             ), true);
             stmt = std::make_unique<ast::StmtSequence>(utils::make_vector<ast::StmtPtr>(std::move(decl), std::move(block) ));
@@ -1543,17 +1555,17 @@ private:
         PPGA_PARSER_LOG(match_statement);
         auto keyword = previous();
         auto value = expression();
-        ast::ExprPtr bound_var;
+        std::string bound_var;
 
         if (match<TokenKind::As>()) {
             consume_identifier("Expected a bound variable name after the `as`.");
-            bound_var = make_var(previous().lexeme());
+            bound_var = previous().lexeme();
         } else if (auto var = dynamic_cast<ast::Variable*>(value.get()); var != nullptr) {
-            bound_var = make_var(var->name);
+            bound_var = var->name;
         } else {
             std::ostringstream ss;
             ss << "_mbound_L" << keyword.span().line << "S" << keyword.span().start;
-            bound_var = make_owned_var(ss.str());
+            bound_var = ss.str();
         }
 
         consume(TokenKind::LeftBrace, "Expected a `{` after the match value.");
@@ -1568,15 +1580,11 @@ private:
             auto pattern = expression();
             ast::MatchPatKind kind;
 
-            if (auto var = dynamic_cast<ast::Variable*>(pattern.get()); var != nullptr && var->name == "_") {
+            if (auto pat = dynamic_cast<ast::Variable*>(pattern.get()); pat != nullptr && pat->name == "_") {
                 any_arm_span = previous().span();
                 kind = ast::MatchPatKind::Else;
-            } else if (var != nullptr) {
-                kind = infer_pattern_kind(var->name, *pattern);
-            } else if (auto gen_bound = dynamic_cast<ast::GeneratedVariable*>(bound_var.get()); gen_bound != nullptr) {
-                kind = infer_pattern_kind(gen_bound->name, *pattern);
             } else {
-                assert(false && "This branch is not supposed to be taken.");
+                kind = infer_pattern_kind(bound_var, *pattern);
             }
 
             consume(TokenKind::LeftBrace, "Expected a `{` after the arm pattern.");
@@ -1587,7 +1595,7 @@ private:
                     break;
                 case ast::MatchPatKind::Comparison:
                     arms.push_back(std::make_unique<ast::If>(
-                        std::make_unique<ast::Binary>("=="sv, std::move(pattern), std::move(bound_var)),
+                        std::make_unique<ast::Binary>("=="sv, std::move(pattern), make_owned_var(std::string(bound_var))),
                         std::move(body),
                         std::nullopt
                     ));
@@ -1635,7 +1643,7 @@ private:
         return std::make_unique<ast::Block>(utils::make_vector<ast::StmtPtr>(
             std::make_unique<ast::VarDecl>(
                 ast::VarKind::Local,
-                std::vector<std::string> { extract_var_name(bound_var) },
+                std::vector<std::string> { bound_var },
                 std::move(value)),
             std::move(stmt.value())
         ),true);
@@ -1681,18 +1689,6 @@ private:
 
     static inline bool is_value_pat(ast::MatchPatKind pat) {
         return pat == ast::MatchPatKind::Value;
-    }
-
-    static std::string extract_var_name(ast::ExprPtr& expr) {
-        auto var = dynamic_cast<ast::Variable*>(expr.get());
-        if (var != nullptr) {
-            return std::string(var->name);
-        }
-        auto gen_var = dynamic_cast<ast::GeneratedVariable*>(expr.get());
-        if (gen_var != nullptr) {
-            return gen_var->name;
-        }
-        assert(false && "Attempted to extract a variable name from a non-variable AST node.");
     }
 
     ast::StmtPtr for_statement(bool is_fori) {
@@ -1824,9 +1820,7 @@ private:
         if (match<TokenKind::Fn>()) {
             return std::make_unique<ast::Lambda>(lambda());
         }
-        auto value = default_op();
-        PPGA_PARSER_LOG_EXPR("leaving expression");
-        return std::move(value);
+        return default_op();
     }
 
     ast::ExprPtr default_op() {
@@ -1836,7 +1830,7 @@ private:
         while (match<TokenKind::DoubleQuery>()) {
             auto right = logic_or();
             ast::ExprPtr callee = std::make_unique<ast::Variable>(
-                std::string_view(constants::DEFAULT_OP_NAME)
+                constants::DEFAULT_OP_NAME
             );
             auto args = utils::make_vector<ast::ExprPtr>(std::move(expr), std::move(right));
             expr = std::make_unique<ast::Call>(std::move(callee), std::move(args));
@@ -1968,7 +1962,7 @@ private:
                 break;
             }
             case TokenKind::LeftParen: {
-                auto grouping = std::make_unique<ast::Grouping>(expression());
+                expr = std::make_unique<ast::Grouping>(expression());
                 try_consume(TokenKind::RightParen, "Expected a `)` after the expression");
                 break;
             }
@@ -2286,7 +2280,7 @@ class ASTPrinter : public Visitor {
     size_t indent_size;
 
 public:
-    ASTPrinter(size_t indent_size = 2)
+    explicit ASTPrinter(size_t indent_size = 2)
         : Visitor(), indent_size(std::max((size_t) 1, indent_size)) {}
 
     std::string finish() const {
@@ -2295,7 +2289,7 @@ public:
 
     void visit(AST& ast) override {
         for (const auto& stmt : ast.statements) {
-            visit(*stmt.get());
+            visit(*stmt);
         }
     }
 
@@ -2317,7 +2311,7 @@ public:
         INNER(visit(*len.expr));
     }
 
-    void visit(LuaBlock& block) override {
+    void visit(LuaBlock&) override {
         ss << "LuaBlock (...)\n";
     }
 
@@ -2460,11 +2454,12 @@ public:
 
     void visit(Block& block) override {
         ss << "Block\n";
-        ss << "is_standalone: " << block.is_standalone << "\n";
-        ss << "statements:\n";
+        indent() << "is_standalone: " << block.is_standalone << "\n";
+        indent() << "statements:\n";
         INNER({
             for (const auto& stmt : block.statements) {
-                visit(*stmt);
+                indent();
+                INNER(visit(*stmt));
             }
         });
     }
@@ -2473,7 +2468,8 @@ public:
         ss << "StmtSequence\n";
         INNER({
             for (const auto& stmt : seq.statements) {
-                visit(*stmt);
+                indent();
+                INNER(visit(*stmt));
             }
         });
     }
@@ -2548,6 +2544,11 @@ inline std::string ppga_to_lua(const std::string& source, PPGAConfig config) {
     }
     auto parser = ppga::parser::Parser(std::move(tokens), config);
     auto result = parser.parse(ex);
+    if (result.has_value()) {
+        auto printer = ppga::visitors::ASTPrinter();
+        printer.visit(result.value());
+        std::cout << printer.finish();
+    }
     for (const auto& e : ex.errors) {
         std::cout << e << "\n";
     }

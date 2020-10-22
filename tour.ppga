@@ -1,33 +1,8 @@
-//print("x", "is", x);
-print(f"x is {x}");
-
-fn f(x) {
-    print("x", "is", x);
-    // string interpolation, transpiles to "x is " .. tostring(x)
-    print(f"x is {x}");
-
-    // Create a new local variable
-    let y = x;
-
-    // Create a new global variable
-    global z = 5;
-
-    let arr = [1, 2, 3];
-    if not x {
-        // returns the array `arr` as an object
-        // the result is an array: [x, arr]
-        return x, arr;  // => return (x), (arr)
-    }
-
-    // unpacks the array `arr` as a sequence of its elements
-    // the result is an array: [x, 1, 2, 3]
-    return x, ...arr;  // => return x, arr
-}
 /*
     Multi-line comments look like this.
 */
 // The single-line comment is also C-style.
-/*
+
 // Variables and functions may be declared with `let` and `global`:
 let a =  -1;
 let b = 2 + 2;
@@ -151,7 +126,7 @@ fori idx, value in container {
     print(idx, value);
 }
 
-// Error handling works Go-style: all error-hanlding facilities expect a tuple of (ok, err),
+// Error handling works Go-style: all error-handling facilities expect a tuple of (ok, err),
 // where either of the elements, but not both, is nil.
 let fail = false;
 fn may_fail() {
@@ -170,7 +145,7 @@ fn recovery() {
 }
 
 fn main() {
-    // The ? operator simplifies Go-style error hanlding.
+    // The ? operator simplifies Go-style error handling.
     // By default, this will make the whole program crash if an error is encountered.
     let ok = may_fail()?;
 
@@ -215,4 +190,3 @@ fn main() {
 
 let res = main();
 print(f"Main returned: {res}");
-*/
