@@ -345,7 +345,7 @@ impl<'a> Parser<'a> {
         let mut any_arm_last = false;
         let mut any_arm_span = None;
 
-        while !self.check(&TokenKind::RightBrace) {
+        while !self.check(&TokenKind::RightBrace) && !self.is_at_end() {
             any_arm_last = false;
             let pattern = self.expression()?;
 
@@ -480,9 +480,7 @@ impl<'a> Parser<'a> {
                 }
                 MatchPatKind::Comparison
             }
-            ExprKind::Unary(_, obj) | ExprKind::Grouping(obj) => {
-                self.infer_pattern_kind(var, &obj)
-            }
+            ExprKind::Unary(_, obj) | ExprKind::Grouping(obj) => self.infer_pattern_kind(var, &obj),
             ExprKind::Binary(left, _, right) => {
                 if self.infer_pattern_kind(var, &left).is_value()
                     || self.infer_pattern_kind(var, &right).is_value()
@@ -954,7 +952,8 @@ impl<'a> Parser<'a> {
         let mut exprs = vec![];
 
         let mut frags = frags.into_iter();
-        loop { // WTF is this loop???
+        loop {
+            // WTF is this loop???
             if let Some(frag) = frags.next() {
                 match frag {
                     Frag::Str(s) => {

@@ -23,9 +23,10 @@ TEST(LexerTests, TestTokensAreLexedCorrectly) {
 
     auto ex = ppga::error::ErrCtx();
     auto lexer = ppga::lexer::Lexer(source);
-    auto result = lexer.lex(ex);
+    auto maybe_result = lexer.lex(ex);
 
     EXPECT_FALSE(ex.had_error()) << err_to_string(ex);
+    auto result = maybe_result.value();
 
     std::vector<std::pair<TokenKind, std::string>> expected {
         { TokenKind::Number, "1" },
@@ -110,7 +111,7 @@ TEST(LexerTests, TestFStringScanning) {
 
     auto ex = ppga::error::ErrCtx();
     auto lexer = ppga::lexer::Lexer(source);
-    auto result = lexer.lex(ex);
+    auto result = lexer.lex(ex).value();
 
     EXPECT_EQ(result.size(), 2);
     EXPECT_EQ(result[0].kind(), TokenKind::FString);

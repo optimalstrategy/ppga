@@ -32,7 +32,7 @@
 #endif
 
 #define PPGA_PARSER_LOG(name) \
-    if (PPGA_DEBUG & PPGA_PARSER_DEBUG) { \
+    if (PPGA_DEBUG && PPGA_PARSER_DEBUG) { \
         std::cout << #name << ":\n    previous = "; \
         if (this->current > 0) std::cout << this->previous(); \
         else std::cout << "..."; \
@@ -42,16 +42,33 @@
 
 namespace ppga {
 namespace constants {
-    using namespace std::string_view_literals;
+using namespace std::string_view_literals;
 
-    /// The number of indentation spaces in the resulting lua code.
-    static size_t DEFAULT_PPGA_INDENT_SIZE = 4;
-    /// The name of the default operator function
-    static constexpr auto DEFAULT_OP_NAME = "__PPGA_INTERNAL_DEFAULT"sv;
-    /// The name of the error handler function
-    static constexpr auto ERR_HANDLER_NAME = "__PPGA_INTERNAL_HANDLE_ERR"sv;
-    /// The name of the default error handler callback
-    static constexpr auto ERR_CALLBACK_NAME = "__PPGA_INTERNAL_DFLT_ERR_CB"sv;
+/// The number of indentation spaces in the resulting lua code.
+static size_t DEFAULT_PPGA_INDENT_SIZE = 4;
+/// The name of the default operator function
+static constexpr auto DEFAULT_OP_NAME = "__PPGA_INTERNAL_DEFAULT"sv;
+/// The name of the error handler function
+static constexpr auto ERR_HANDLER_NAME = "__PPGA_INTERNAL_HANDLE_ERR"sv;
+/// The name of the default error handler callback
+static constexpr auto ERR_CALLBACK_NAME = "__PPGA_INTERNAL_DFLT_ERR_CB"sv;
+/// The DEFAULT_OP_NAME definition
+static constexpr auto DEFAULT_OP_DEFN = R"(local function __PPGA_INTERNAL_DEFAULT(x, default)
+    if x ~= nil then return (x) end
+    return (default)
+end)"sv;
+/// THe ERR_HANDLER_NAME definition
+static constexpr auto ERR_HANDLER_DEFN = R"(local function __PPGA_INTERNAL_HANDLE_ERR(cb, ...)
+    local ok, err = ...
+    if err ~= nil then
+        ok, err = cb(err)
+    end
+    return (ok), (err)
+end)"sv;
+/// The ERR_CALLBACK_NAME definition
+static constexpr auto ERR_CALLBACK_DEFN = R"(local function __PPGA_INTERNAL_DFLT_ERR_CB(err)
+    error(err)
+end)"sv;
 }
 
 struct PPGAConfig {
@@ -113,6 +130,15 @@ struct ErrCtx {
         errors.reserve(errors.size() + ex.errors.size());
         errors.insert(errors.end(),ex.errors.begin(),ex.errors.end());
         ex.errors.clear();
+    }
+
+    void raise() {
+        if (!had_error()) return;
+        std::ostringstream errors;
+        for (const auto& e : this->errors) {
+            errors << e << "\n";
+        }
+        throw std::runtime_error{ errors.str() };
     }
 
     [[nodiscard]]
@@ -466,7 +492,7 @@ public:
     explicit Lexer(std::string_view source)
             : source(source), current(0), line(1), tokens(std::vector<Token>{}) {}
 
-    std::vector<Token> lex(error::ErrCtx& ex) noexcept {
+    std::optional<std::vector<Token>> lex(error::ErrCtx& ex) noexcept {
         while (!is_at_end()) {
             tokens.push_back(next_token(ex));
         }
@@ -474,7 +500,7 @@ public:
         if (tokens.size() == 0 || tokens.at(tokens.size() - 1).kind() != TokenKind::EndOfFile) {
              tokens.push_back(next_token(ex));
         }
-        return std::move(this->tokens);
+        return ex.had_error() ? std::nullopt : std::optional(std::move(this->tokens));
     }
 
     Token next_token(error::ErrCtx& ex) noexcept {
@@ -712,7 +738,7 @@ public:
 
                     span = this->span(frag_start);
                     auto sublexer = Lexer(span.slice());
-                    std::vector<Token> frag_tokens = sublexer.lex(ex);
+                    auto frag_tokens = sublexer.lex(ex).value_or(std::vector<Token>{});
                     frag_tokens.pop_back(); // Pop the EOF
                     frags.emplace_back(frag_tokens);
                     prev_fragment_end = current + 1;
@@ -994,7 +1020,10 @@ struct FunctionData {
 
 struct Literal : public Visitable<Expr, Literal> {
     std::string_view value;
+    bool is_string{false};
     explicit Literal(std::string_view value) : Visitable(), value(value) {};
+    explicit Literal(std::string_view value, bool is_string)
+        : Visitable(), value(value), is_string(is_string) {};
 };
 
 struct Len : public Visitable<Expr, Len> {
@@ -1090,6 +1119,7 @@ struct If : public Visitable<Stmt, If> {
     ExprPtr condition;
     StmtPtr then;
     std::optional<StmtPtr> otherwise;
+    bool is_elif{false};
 
     explicit If(ExprPtr condition, StmtPtr then, std::optional<StmtPtr> otherwise)
         : Visitable(),
@@ -1630,6 +1660,7 @@ private:
                 auto maybe_if = dynamic_cast<ast::If*>(it->get());
                 assert(maybe_if != nullptr && "An arm must always have a value");
                 stmt.swap(maybe_if->otherwise);
+                stmt = std::move(*it);
             } else {
                 stmt = std::move(*it);
             }
@@ -1950,7 +1981,10 @@ private:
             case TokenKind::False:
             case TokenKind::StringLiteral: [[fallthrough]];
             case TokenKind::Number:{
-                expr = std::make_unique<ast::Literal>(token.lexeme());
+                expr = std::make_unique<ast::Literal>(
+                    token.lexeme(),
+                    token.kind() == TokenKind::StringLiteral
+                );
                 break;
             }
             case TokenKind::Identifier: {
@@ -1988,13 +2022,13 @@ private:
                 std::stringstream s;
                 s << "Reached the end of the script, last see token was "
                   << previous().kind() << " `" <<  previous().lexeme() << "`";
-                error(s.str());
+                error(previous(), s.str());
                 throw parser_exception();
             }
             default: {
                 std::stringstream s;
                 s << "Unexpected symbol " << token.kind();
-                error(s.str());
+                error(previous(), s.str());
                 throw parser_exception();
             }
         }
@@ -2012,7 +2046,7 @@ private:
             if (frag.is_string) {
                 // Skip empty strings
                 if (frag.string_fragment.empty()) continue;
-                exprs.push_back(std::make_unique<ast::Literal>(frag.string_fragment));
+                exprs.push_back(std::make_unique<ast::Literal>(frag.string_fragment, true));
             } else {
                 std::vector<Token> tokens_ = frag.inner_tokens;
                 Parser parser = Parser(std::move(tokens_), config);
@@ -2484,6 +2518,7 @@ public:
 
     void visit(FuncDecl& decl) override {
         ss << "FuncDecl\n";
+        indent() << "kind: " << (decl.kind == VarKind::Local ? "local" : "global") << "\n";
         visit(decl.data);
     }
 
@@ -2532,29 +2567,395 @@ public:
     }
 };
 
+#define SEP_COMMA(i, arr)    if ((i) != (arr).size() - 1) { ss << ", "; }
+
+class LuaTranspiler : public Visitor {
+    std::stringstream ss{};
+    size_t depth{0};
+    size_t indent_size;
+    bool include_std;
+
+public:
+    explicit LuaTranspiler(PPGAConfig config)
+            : Visitor(),
+              indent_size(std::max((size_t) 1, config.indent_size)),
+              include_std(config.include_ppga_std) {}
+
+    std::string finish() const {
+        return ss.str();
+    }
+
+    void visit(AST& ast) override {
+        if (this->include_std) {
+            ss << "-- PPGA STD SYMBOLS\n";
+            ss << constants::DEFAULT_OP_DEFN << "\n";
+            ss << constants::ERR_HANDLER_DEFN << "\n";
+            ss << constants::ERR_CALLBACK_DEFN << "\n";
+            ss << "-- END PPGA STD SYMBOLS\n\n\n";
+        }
+        for (const auto& stmt : ast.statements) {
+            visit(*stmt);
+        }
+    }
+
+    void visit(Expr& expr) override {
+        expr.accept(*this);
+    }
+
+    void visit(Stmt& stmt) override {
+        stmt.accept(*this);
+    }
+
+    void visit(Literal& lit) override {
+        if (lit.is_string) {
+            ss << "\"";
+            if (lit.value.at(0) == '\"' || lit.value.at(0) == '\'') {
+                ss << lit.value.substr(1, lit.value.length() - 2);
+            } else {
+                ss << lit.value;
+            }
+            ss << "\"";
+        } else {
+            ss << lit.value;
+        }
+    }
+
+    void visit(Len& len) override {
+        ss << "#("; visit(*len.expr); ss << ")";
+    }
+
+    void visit(LuaBlock& lua) override {
+        ss << lua.contents; // TODO: do this correctly
+    }
+
+    void visit(Variable& var) override {
+        ss << var.name;
+    }
+
+    void visit(GeneratedVariable& var) override {
+        ss << var.name;
+    }
+
+    void visit(FString& fstring) override {
+        for (size_t i = 0; i < fstring.fragments.size(); ++i) {
+            const auto& frag = fstring.fragments[i];
+            if (auto lit = dynamic_cast<ast::Literal*>(frag.get()); lit != nullptr && lit->is_string) {
+                visit(*frag);
+            } else {
+                ss << "tostring("; visit(*frag); ss << ")";
+            }
+            if (i != fstring.fragments.size() - 1) {
+                ss << " .. ";
+            }
+        }
+    }
+
+    void visit(Get& get) override {
+        visit(*get.obj);
+        ss << (get.is_static ? ":" : ".");
+        ss << get.attr;
+    }
+
+    void visit(GetItem& get) override {
+        visit(*get.obj);
+        ss << "["; visit(*get.item); ss << "]";
+    }
+
+    void visit(Call& call) override {
+        visit(*call.callee);
+        ss << "(";
+        for (size_t i = 0; i < call.args.size(); ++i) {
+            visit(*call.args[i]);
+            SEP_COMMA(i, call.args);
+        }
+        ss << ")";
+    }
+
+    void visit(Unary& unary) override {
+        if (unary.op == "...") {
+            visit(*unary.operand);
+        } else {
+            ss << unary.op << "(";
+            visit(*unary.operand);
+            ss << ")";
+        }
+    }
+
+    void visit(Binary& binary) override {
+        visit(*binary.left);
+
+        auto op = std::string(binary.op);
+        if (binary.op == "\\") op = "//";
+        else if (binary.op == "**") op = "^";
+        else if (binary.op == "!=") op = "~=";
+        ss << " " << op << " ";
+
+        visit(*binary.right);
+    }
+
+    void visit(Grouping& grouping) override {
+        ss << "("; visit(*grouping.expr); ss << ")";
+    }
+
+    void visit(ArrayLiteral& arr) override {
+        ss << "{";
+        for (size_t i = 0; i < arr.values.size(); ++i) {
+            ss << "[" << i << "] = "; visit(*arr.values[i]);
+            SEP_COMMA(i, arr.values);
+        }
+        ss << "}";
+    }
+
+    void visit(DictLiteral& dict) override {
+        ss << "{";
+        if (!dict.pairs.empty()) {
+            ss << "\n";
+        }
+        for (size_t i = 0; i < dict.pairs.size(); ++i) {
+            INNER({
+                indent() << "["; visit(*dict.pairs[i].first); ss << "] = ";
+                visit(*dict.pairs[i].second);
+            });
+            if (i != dict.pairs.size() - 1) {
+                ss << ",\n";
+            }
+        }
+        if (dict.pairs.empty()) {
+            ss << "}";
+        } else {
+            ss << "\n"; indent(); ss << "}";
+        }
+    }
+
+    void visit(Lambda& lambda) override {
+        visit(lambda.data, VarKind::Local);
+    }
+
+    void visit(ExprStmt& expr) override {
+        indent();
+        visit(*expr.expr);
+        ss << "\n";
+    }
+
+    void visit(If& conditional) override {
+        if (!conditional.is_elif) {
+            indent();
+        }
+        ss << "if "; visit(*conditional.condition);
+        ss << " then\n"; visit(*conditional.then);
+
+        if (conditional.otherwise.has_value()) {
+            const auto& el = conditional.otherwise.value();
+            // We need to remove the word `end` written by the previous block.
+            // To achieve this, we move the write pointer by 3 characters to the left, thus positioning it
+            // right before the `end`:
+            //              ,-- seekp
+            //    <...> end\n
+            //          ^-- seekp - 4
+            //
+            ss.seekp(-4, std::stringstream::cur);
+            // Now we can overwrite it with an `else` block:
+            ss << "else";
+            if (auto el_val = dynamic_cast<If*>(el.get()); el_val != nullptr) {
+                el_val->is_elif = true;
+            } else {
+                ss << "\n";
+            }
+            visit(*el);
+        }
+    }
+
+    void visit(For& loop) override {
+       write_newline_if_missing();
+       indent() << "for ";
+        std::visit([&, this](const auto& arg) {
+            using T = std::decay_t<decltype(arg)>;
+            if constexpr (std::is_same_v<T, Range>) {
+                visit(*loop.vars[0]);
+                ss << " = " << arg.start << ", " << arg.end << ", " << arg.step;
+            } else if constexpr (std::is_same_v<T, std::vector<ExprPtr>>) {
+                for (size_t i = 0; i < loop.vars.size(); ++i) {
+                    visit(*loop.vars[i]);
+                    SEP_COMMA(i, loop.vars);
+                }
+                ss << " in ";
+                bool is_pairs_loop = arg.size() == 1 && loop.vars.size() == 2;
+                if (is_pairs_loop) {
+                    ss << (loop.is_fori ? "ipairs" : "pairs") << "(";
+                }
+                for (size_t i = 0; i < arg.size(); ++i) {
+                    visit(*arg[i]);
+                    SEP_COMMA(i, arg);
+                }
+                if (is_pairs_loop) ss << ")";
+            } else {
+                static_assert(utils::always_false_v<T> , "non-exhaustive visitor!");
+            }
+        }, loop.condition);
+
+        ss << " do\n";
+        indent(); visit(*loop.body);
+    }
+
+    void visit(While& loop) override {
+        write_newline_if_missing();
+        indent() << "while "; visit(*loop.condition); ss << " do\n";
+        indent(); visit(*loop.body);
+    }
+
+    void visit(Block& block) override {
+        if (block.is_standalone) {
+            indent() << "do\n";
+        }
+        INNER({
+            for (const auto& stmt : block.statements) {
+                visit(*stmt);
+            }
+        });
+        indent() << "end\n";
+    }
+
+    void visit(StmtSequence& seq) override {
+        for (const auto& stmt : seq.statements) {
+            visit(*stmt);
+        }
+    }
+
+    void visit(Return& ret) override {
+        indent() << "return ";
+        for (size_t i = 0; i < ret.values.size(); ++i) {
+            const auto& v = ret.values[i];
+            if (auto unop = dynamic_cast<Unary*>(v.get()); unop != nullptr && unop->op == "...") {
+                visit(*v);
+            } else {
+                ss << "("; visit(*v); ss << ")";
+            }
+            SEP_COMMA(i, ret.values);
+        }
+        ss << "\n";
+    }
+
+    void visit(FuncDecl& decl) override {
+        write_newline_if_missing();
+        indent();
+        visit(decl.data, decl.kind);
+        ss << "\n";
+    }
+
+    void visit(Assignment& ass) override {
+        indent();
+        for (size_t i = 0; i < ass.vars.size(); ++i) {
+            visit(*ass.vars[i]);
+            SEP_COMMA(i, ass.vars);
+        }
+        if (ass.op == "*==") {
+            ss << " = "; visit(*ass.vars.at(0));
+            ss << " ^ ";
+        } else {
+            ss << " " << ass.op << " ";
+        }
+        visit(*ass.value);
+        ss << "\n";
+    }
+
+    void visit(VarDecl& decl) override {
+        indent();
+        if (decl.kind == VarKind::Local) {
+            ss << "local ";
+        }
+        for (size_t i = 0; i < decl.names.size(); ++i) {
+            ss << decl.names[i];
+            SEP_COMMA(i, decl.names);
+        }
+        if (decl.initializer.has_value()) {
+            ss << " = "; visit(*decl.initializer.value());
+        }
+        ss << "\n";
+    }
+
+    void visit(Break&) override {
+        indent() << "break\n";
+    }
+
+    void visit(FunctionData& fn, VarKind kind) {
+        ss << (fn.name.has_value() && kind == VarKind::Local ? "local " : "")
+           << "function " << fn.name.value_or("") << "(";
+        for (size_t i{}; i < fn.params.size(); ++i) {
+            if (auto param = dynamic_cast<Variable*>(fn.params[i].get()); param != nullptr) {
+                ss << (param->name == "@" ? "..." : param->name);
+            } else if (auto gen_param = dynamic_cast<GeneratedVariable*>(fn.params[i].get()); gen_param != nullptr) {
+                ss << (gen_param->name == "@" ? "..." : gen_param->name);
+            } else {
+                assert(param != nullptr && gen_param != nullptr && "function param is not a variable");
+            }
+            SEP_COMMA(i, fn.params);
+        }
+        ss << ")\n";
+        visit(*fn.body);
+        if (!fn.name) {
+            // Get rid of the newline if this is a lambda
+            ss.seekp(-1, std::stringstream::cur);
+        }
+    }
+
+    void inline write_newline_if_missing() {
+        if (ss.peek() != '\n') ss << '\n';
+    }
+
+    std::stringstream& indent() noexcept {
+        size_t count = depth * indent_size;
+        while (count-- > 0) {
+            ss << " ";
+        }
+        return ss;
+    }
+};
+
+
+#undef SEP_COMMA
 #undef INNER
 } // visitors
 
-inline std::string ppga_to_lua(const std::string& source, PPGAConfig config) {
-    auto ex = ppga::error::ErrCtx{};
+inline std::optional<ppga::ast::AST> ppga_parse(
+    const std::string_view source,
+    ppga::error::ErrCtx& ex,
+    PPGAConfig config = PPGAConfig{})
+{
     auto lexer = ppga::lexer::Lexer(source);
     auto tokens = lexer.lex(ex);
-    for (const auto& tok : tokens) {
-        std::cout << "Token: " << tok.kind() << " \"" << tok.lexeme() << "\"\n";
+    if (ex.had_error()) {
+        return std::nullopt;
     }
-    auto parser = ppga::parser::Parser(std::move(tokens), config);
-    auto result = parser.parse(ex);
-    if (result.has_value()) {
-        auto printer = ppga::visitors::ASTPrinter();
-        printer.visit(result.value());
-        std::cout << printer.finish();
-    }
-    for (const auto& e : ex.errors) {
-        std::cout << e << "\n";
-    }
-    return "";
+    auto parser = ppga::parser::Parser(std::move(tokens.value()), config);
+    return parser.parse(ex);
 }
 
+inline std::optional<std::string> ppga_to_lua(
+    const std::string_view source,
+    ppga::error::ErrCtx& ex,
+    PPGAConfig config = PPGAConfig{}
+)
+    noexcept
+{
+    auto ast = ppga_parse(source, ex, config);
+    if (!ast.has_value()) {
+        return std::nullopt;
+    }
+
+    auto lt = ppga::visitors::LuaTranspiler(config);
+    lt.visit(ast.value());
+    return lt.finish();
+}
+
+inline std::string ppga_to_lua(
+    const std::string_view source,
+    PPGAConfig config = PPGAConfig{}) /* throws std::runtime_error */
+{
+    auto ex = ppga::error::ErrCtx{};
+    auto result = ppga_to_lua(source, ex, config);
+    ex.raise();
+    return std::move(result.value());
+}
 }
 
 #endif //PPGA_SCRIPT_PPGA_HPP

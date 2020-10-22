@@ -68,6 +68,7 @@ VarDecl
         left: Literal: `10`
         right: Literal: `2`
 FuncDecl
+  kind: global
   name: h
   body: Block
     is_standalone: 0
@@ -95,6 +96,7 @@ Block
       name0: empty
       initializer: DictLiteral
 FuncDecl
+  kind: local
   name: f
   param0: Variable: `x`
   body: Block
@@ -213,7 +215,64 @@ Block
               arg0: FString
                 frag0: Literal: `y is < 60: `
                 frag1: Variable: `y`
-      else:  (none)
+      else: If
+        condition: Binary `==`
+          left: Literal: `60`
+          right: GeneratedVariable: `y`
+        then: Block
+          is_standalone: 0
+          statements:
+            ExprStmt
+              expr: Call
+                callee: Variable: `print`
+                arg0: FString
+                  frag0: Literal: `y is `
+                  frag1: Variable: `y`
+        else: If
+          condition: Binary `==`
+            left: Binary `**`
+              left: Variable: `y`
+              right: Literal: `0.5`
+            right: Literal: `8`
+          then: Block
+            is_standalone: 0
+            statements:
+              ExprStmt
+                expr: Call
+                  callee: Variable: `print`
+                  arg0: FString
+                    frag0: Literal: `sqrt(y) is 8: `
+                    frag1: Variable: `y`
+          else: If
+            condition: Call
+              callee: Grouping
+                expr: Lambda
+                  name: <anon>
+                  param0: Variable: `z`
+                  body: Block
+                    is_standalone: 0
+                    statements:
+                      Return
+                        retval0: Binary `>`
+                          left: Variable: `z`
+                          right: Literal: `60`
+              arg0: Variable: `y`
+            then: Block
+              is_standalone: 0
+              statements:
+                ExprStmt
+                  expr: Call
+                    callee: Variable: `print`
+                    arg0: FString
+                      frag0: Literal: `y is > 60: `
+                      frag1: Variable: `y`
+            else: Block
+              is_standalone: 0
+              statements:
+                ExprStmt
+                  expr: Call
+                    callee: Variable: `print`
+                    arg0: Literal: `"Everything else goes here."`
 VarDecl
   kind: VarKind::Local
   name0: g
@@ -337,6 +396,7 @@ VarDecl
   name0: fail
   initializer: Literal: `false`
 FuncDecl
+  kind: local
   name: may_fail
   body: Block
     is_standalone: 0
@@ -354,6 +414,7 @@ FuncDecl
         retval0: Literal: `"success"`
         retval1: Literal: `nil`
 FuncDecl
+  kind: local
   name: another_fail
   body: Block
     is_standalone: 0
@@ -362,6 +423,7 @@ FuncDecl
         retval0: Literal: `nil`
         retval1: Literal: `"error 2"`
 FuncDecl
+  kind: local
   name: recovery
   body: Block
     is_standalone: 0
@@ -370,6 +432,7 @@ FuncDecl
         retval0: Literal: `"recovered"`
         retval1: Literal: `nil`
 FuncDecl
+  kind: local
   name: main
   body: Block
     is_standalone: 0

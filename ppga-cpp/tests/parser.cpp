@@ -20,19 +20,12 @@ std::string err_to_string(ppga::error::ErrCtx& ex) {
 }
 
 TEST(ParserTests, TestPrimitiveExpressions) {
-    auto source = "let a = 2 + 1;\n"
+    static constexpr auto source = "let a = 2 + 1;\n"
                   "print(\"x\", x);\n"
                   "print(f\"{a} string\");";
 
     auto ex = ppga::error::ErrCtx();
-    auto lexer = ppga::lexer::Lexer(source);
-    auto result = lexer.lex(ex);
-
-    EXPECT_EQ(ex.had_error(), false) << err_to_string(ex);
-    if (ex.had_error()) return;
-
-    auto parser = ppga::parser::Parser(std::move(result), ppga::PPGAConfig{});
-    auto maybe_ast = parser.parse(ex);
+    auto maybe_ast = ppga::ppga_parse(source, ex);
 
     EXPECT_EQ(ex.had_error(), false) << err_to_string(ex);
     if (ex.had_error()) return;
@@ -79,12 +72,13 @@ TEST(ParserTests, TestPPGATourAST) {
     auto ast_string = read_file("../../../ppga-cpp/tests/tour.ppga.ast");
 
     auto ex = ppga::error::ErrCtx();
-    auto lexer = Lexer(tour_source); // TODO: return an option
-    auto tokens = lexer.lex(ex);
+    auto lexer = Lexer(tour_source);
+    auto maybe_tokens = lexer.lex(ex);
 
     if (ex.had_error()) {
         ASSERT_FALSE(ex.had_error()) << "Unexpected lexing errors: " << err_to_string(ex);
     }
+    auto tokens = std::move(maybe_tokens.value());
 
     auto parser = Parser(std::move(tokens), ppga::PPGAConfig{});
     auto maybe_ast = parser.parse(ex);

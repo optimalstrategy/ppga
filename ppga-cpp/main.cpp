@@ -11,11 +11,12 @@ std::string read_file(const fs::path&);
 
 int main() {
     auto source = read_file("../../tour.ppga");
-    auto result = ppga::ppga_to_lua(
-        source,
-        ppga::PPGAConfig{}
-    );
-    std::cout << result << "\n";
+    try {
+        auto result = ppga::ppga_to_lua(source);
+        std::cout << result << std::flush;
+    } catch (std::runtime_error& e){
+        std::cerr << e.what() << std::endl;
+    }
     return 0;
 }
 
