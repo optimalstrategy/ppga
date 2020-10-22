@@ -16,7 +16,7 @@ set(CMAKE_CXX_EXTENSIONS ON)
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 # Set project name
-project(PPGA)
+project(ppga-cpp)
 
 # Add source files and dependencies to executable
 set(

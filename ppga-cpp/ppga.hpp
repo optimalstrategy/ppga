@@ -31,21 +31,14 @@
 #define PPGA_PARSER_INSTANTLY_FAIL 0
 #endif
 
-#define PPGA_PARSER_LOG(name) \
-    if (PPGA_DEBUG && PPGA_PARSER_DEBUG) { \
-        std::cout << #name << ":\n    previous = "; \
-        if (this->current > 0) std::cout << this->previous(); \
-        else std::cout << "..."; \
-        std::cout << "\n    current = " << this->peek() << std::endl; \
-    }
-#define PPGA_PARSER_LOG_EXPR(expr) if (PPGA_DEBUG && PPGA_PARSER_DEBUG) { std::cout << (expr) << std::endl; }
-
 namespace ppga {
 namespace constants {
 using namespace std::string_view_literals;
 
 /// The number of indentation spaces in the resulting lua code.
 static size_t DEFAULT_PPGA_INDENT_SIZE = 4;
+/// The number of chars an error line may be. Longer lines will be truncated.
+static size_t PPGA_ERROR_LINE_MAX_LENGTH = 256;
 /// The name of the default operator function
 static constexpr auto DEFAULT_OP_NAME = "__PPGA_INTERNAL_DEFAULT"sv;
 /// The name of the error handler function
@@ -71,27 +64,37 @@ static constexpr auto ERR_CALLBACK_DEFN = R"(local function __PPGA_INTERNAL_DFLT
 end)"sv;
 }
 
+/// This struct controls the lua codegen settings.
 struct PPGAConfig {
+    /// The desired indentation size in spaces. Defaults to `constants::DEFAULT_PPGA_INDENT_SIZE`.
     size_t indent_size = constants::DEFAULT_PPGA_INDENT_SIZE;
+    /// Whether to include the PPGA standard library functions.
+    /// Some PPGA features like the `??` operator or `err` blocks are not going to work without these functions.
     bool include_ppga_std = true;
 };
 
 namespace lexer {
+/// A span corresponding to a token in the source code.
 struct Span {
+    /// The start of the lexeme.
     size_t start;
-    /// Exclusive
+    /// The end of the lexeme (exclusive).
     size_t end;
+    /// The line the lexeme is on.
     size_t line;
+    /// A pointer to the source code string.
     std::string_view source;
 
     explicit Span(size_t start, size_t end, size_t line, std::string_view source)
             : start(start), end(end), line(line), source(source) {}
 
+    /// Returns a pointer to the lexeme defined by the `start` and `end` values.
     [[nodiscard]]
     constexpr std::string_view slice() const {
         return source.substr(start, end - start);
     }
 
+    /// Outputs the span to the given ostream.
     friend std::ostream& operator<<(std::ostream& out, const Span& span) {
         out << "Span { line = " << span.line << ", lexeme = \"" << span.slice()
             << "\" (" << span.start << ".." << span.end << ") }";
@@ -101,10 +104,14 @@ struct Span {
 }
 
 namespace error {
+/// An error originating at any pointer in the transpiler pipeline.
 struct PPGAError {
+    /// The span of the token that caused the error.
     lexer::Span span;
+    /// The human description of the error.
     std::string description;
 
+    /// Outputs the error to the given stream in a non-fancy way.
     friend std::ostream& operator<<(std::ostream& out, const PPGAError& error) {
         out << "PPGAError {\n    Span: " << error.span << ",\n    description: \""
             << error.description << "\"\n}";
@@ -112,9 +119,13 @@ struct PPGAError {
     }
 };
 
+/// An error context that stores all errors originating within transpiler pipeline.
+/// This struct offers methods for recording and reporting errors.
 struct ErrCtx {
+    /// The collected errors.
     std::vector<PPGAError> errors;
 
+    /// Records a new error created from the given span and description.
     void error(lexer::Span span, std::string&& description) {
         errors.push_back(PPGAError {
             span,
@@ -122,28 +133,84 @@ struct ErrCtx {
         });
     }
 
+    /// Records a new error.
     void error(PPGAError&& error) {
         errors.push_back(std::move(error));
     }
 
+    /// Moves all errors from the given error context to this error context.
+    /// Clears the external `ex`.
     void extend(ErrCtx& ex) {
         errors.reserve(errors.size() + ex.errors.size());
-        errors.insert(errors.end(),ex.errors.begin(),ex.errors.end());
+        errors.insert(errors.end(), ex.errors.begin(), ex.errors.end());
         ex.errors.clear();
     }
 
-    void raise() {
-        if (!had_error()) return;
+    /// Generates an error report string.
+    std::string to_string() const noexcept {
+        if (!had_error()) return "";
         std::ostringstream errors;
         for (const auto& e : this->errors) {
-            errors << e << "\n";
+            errors << highlight_error(e) << "\n";
         }
-        throw std::runtime_error{ errors.str() };
+        return errors.str();
     }
 
+    /// Throws an `std::runtime_error` if the context contains one or more errors.
+    /// Does nothing otherwise.
+    void raise() {
+        if (!had_error()) return;
+        throw std::runtime_error{ to_string() };
+    }
+
+    /// Returns true if there's at least one error.
     [[nodiscard]]
     inline bool had_error() const noexcept {
         return !errors.empty();
+    }
+
+private:
+    inline static std::pair<size_t, bool> find_error_line_start(const PPGAError& e) {
+        size_t line_start = e.span.start;
+        while (line_start > 0 && e.span.source.at(--line_start) != '\n'
+               && (e.span.start - line_start) < constants::PPGA_ERROR_LINE_MAX_LENGTH);
+        return {
+            line_start + (line_start != 0),
+            e.span.start - line_start >= constants::PPGA_ERROR_LINE_MAX_LENGTH
+        };
+    }
+
+    inline static size_t find_error_line_end(const PPGAError& e) {
+        size_t line_end = e.span.end - 1;
+        while (line_end < e.span.source.size() && e.span.source.at(++line_end) != '\n'
+               && (line_end - e.span.end) < constants::PPGA_ERROR_LINE_MAX_LENGTH);
+        return line_end;
+    }
+
+    inline static size_t compute_column(const PPGAError& e, size_t line_start) noexcept {
+        return e.span.start - line_start + 1; // +1 because columns are 1-based
+    }
+
+    [[nodiscard]]
+    static std::string highlight_error(const PPGAError& e) {
+        auto [line_start, truncated] = find_error_line_start(e);
+        auto line_end = find_error_line_end(e);
+        auto line = lexer::Span(line_start, line_end, e.span.line, e.span.source).slice();
+        auto column = compute_column(e, line_start);
+
+        std::ostringstream ss;
+        ss << "[PPGAError at " << e.span.line << ":";
+        if (truncated) {
+            ss << "xx";
+        } else {
+            ss << std::setfill('0') << std::setw(2) << column;
+        }
+        ss << "] " << e.description << "\n|\n";
+        ss << "| " << line << "\n";
+        auto spaces = std::string(column, ' ');
+        auto hats = std::string(e.span.slice().length(), '^');
+        ss << "|" << spaces << hats;
+        return ss.str();
     }
 };
 }
@@ -1326,6 +1393,20 @@ std::vector<T> make_vector() {
 } // utils
 
 namespace parser {
+#if PPGA_DEBUG == 1 && PPGA_PARSER_DEBUG == 1
+#define PPGA_PARSER_LOG(name) \
+    { \
+        std::cout << #name << ":\n    previous = "; \
+        if (this->current > 0) std::cout << this->previous(); \
+        else std::cout << "..."; \
+        std::cout << "\n    current = " << this->peek() << std::endl; \
+    }
+#define PPGA_PARSER_LOG_EXPR(expr) { std::cout << (expr) << std::endl; }
+#else
+#define PPGA_PARSER_LOG(_) (void)0;
+#define PPGA_PARSER_LOG_EXPR(_) (void)0;
+#endif
+
 using namespace lexer;
 
 template<typename T>
@@ -1448,6 +1529,7 @@ private:
             if (match<TokenKind::Query>()) {
                 error(previous(), "Cannot use `?` without an initializer.");
             }
+            initializer = std::make_unique<ast::Literal>("nil"sv);
         }
 
         auto perform_error_expansion = match<TokenKind::Query>() ? std::optional(previous()) : std::nullopt;
@@ -2216,9 +2298,7 @@ private:
 
     Token& consume_semicolon(std::string&& message) {
         auto value = try_consume_semicolon(std::move(message));
-        if (value.has_value()) {
-            return value.value();
-        }
+        if (value) return value.value();
         throw parser_exception();
     }
 
@@ -2301,6 +2381,9 @@ private:
         PPGA_PARSER_LOG_EXPR(ex.errors[ex.errors.size() - 1]);
     }
 };
+
+#undef PPGA_PARSER_LOG
+#undef PPGA_PARSER_LOG_EXPR
 } // parser
 
 namespace visitors {
