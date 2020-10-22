@@ -1,0 +1,538 @@
+VarDecl
+  kind: VarKind::Local
+  name0: a
+  initializer: Unary `-`
+    operand: Literal: `1`
+VarDecl
+  kind: VarKind::Local
+  name0: b
+  initializer: Binary `+`
+    left: Literal: `2`
+    right: Literal: `2`
+VarDecl
+  kind: VarKind::Local
+  name0: c
+  initializer: Binary `*`
+    left: Literal: `3`
+    right: Literal: `3`
+VarDecl
+  kind: VarKind::Local
+  name0: d
+  initializer: Binary `/`
+    left: Literal: `4`
+    right: Literal: `4`
+VarDecl
+  kind: VarKind::Local
+  name0: e
+  initializer: Binary `\`
+    left: Literal: `4`
+    right: Literal: `4`
+VarDecl
+  kind: VarKind::Local
+  name0: f
+  initializer: Binary `**`
+    left: Literal: `5`
+    right: Literal: `5`
+VarDecl
+  kind: VarKind::Local
+  name0: g
+  initializer: Binary `%`
+    left: Literal: `6`
+    right: Literal: `7`
+VarDecl
+  kind: VarKind::Local
+  name0: h
+  initializer: Binary `..`
+    left: Literal: `"abc"`
+    right: Literal: `"d"`
+VarDecl
+  kind: VarKind::Local
+  name0: i
+  initializer: Binary `or`
+    left: Binary `or`
+      left: Binary `and`
+        left: Binary `!=`
+          left: Literal: `true`
+          right: Literal: `false`
+        right: Binary `<`
+          left: Literal: `3`
+          right: Literal: `4`
+      right: Binary `>=`
+        left: Literal: `5`
+        right: Literal: `6`
+    right: Binary `and`
+      left: Binary `<=`
+        left: Literal: `3`
+        right: Literal: `7`
+      right: Binary `>`
+        left: Literal: `10`
+        right: Literal: `2`
+FuncDecl
+  kind: global
+  name: h
+  body: Block
+    is_standalone: 0
+    statements:
+Block
+  is_standalone: 1
+  statements:
+    VarDecl
+      kind: VarKind::Local
+      name0: arr
+      initializer: ArrayLiteral
+        val0: Literal: `1`
+        val1: Literal: `2`
+        val2: Literal: `3`
+    VarDecl
+      kind: VarKind::Local
+      name0: dict
+      initializer: DictLiteral
+        key0: Literal: `1`
+        val0: Literal: `2`
+        key1: Literal: `3`
+        val1: Literal: `4`
+    VarDecl
+      kind: VarKind::Local
+      name0: empty
+      initializer: DictLiteral
+FuncDecl
+  kind: local
+  name: f
+  param0: Variable: `x`
+  body: Block
+    is_standalone: 0
+    statements:
+      ExprStmt
+        expr: Call
+          callee: Variable: `print`
+          arg0: Literal: `"x"`
+          arg1: Literal: `"is"`
+          arg2: Variable: `x`
+      ExprStmt
+        expr: Call
+          callee: Variable: `print`
+          arg0: FString
+            frag0: Literal: `x is `
+            frag1: Variable: `x`
+      VarDecl
+        kind: VarKind::Local
+        name0: y
+        initializer: Variable: `x`
+      VarDecl
+        kind: VarKind::Global
+        name0: z
+        initializer: Literal: `5`
+      VarDecl
+        kind: VarKind::Local
+        name0: arr
+        initializer: ArrayLiteral
+          val0: Literal: `1`
+          val1: Literal: `2`
+          val2: Literal: `3`
+      If
+        condition: Unary `not`
+          operand: Variable: `x`
+        then: Block
+          is_standalone: 0
+          statements:
+            Return
+              retval0: Variable: `x`
+              retval1: Variable: `arr`
+        else:  (none)
+      Return
+        retval0: Variable: `x`
+        retval1: Unary `...`
+          operand: Variable: `arr`
+VarDecl
+  kind: VarKind::Local
+  name0: x
+  name1: arr
+  initializer: Call
+    callee: Variable: `f`
+    arg0: Literal: `35`
+ExprStmt
+  expr: Call
+    callee: Variable: `print`
+    arg0: FString
+      frag0: Literal: `f returned: `
+      frag1: Variable: `x`
+      frag2: Literal: `, `
+      frag3: Variable: `arr`
+If
+  condition: Binary `<`
+    left: Variable: `x`
+    right: Literal: `20`
+  then: Block
+    is_standalone: 0
+    statements:
+      ExprStmt
+        expr: Call
+          callee: Variable: `print`
+          arg0: FString
+            frag0: Literal: `x is < 20: `
+            frag1: Variable: `x`
+  else: If
+    condition: Binary `<`
+      left: Variable: `x`
+      right: Literal: `30`
+    then: Block
+      is_standalone: 0
+      statements:
+        ExprStmt
+          expr: Call
+            callee: Variable: `print`
+            arg0: FString
+              frag0: Literal: `x is < 30: `
+              frag1: Variable: `x`
+    else: Block
+      is_standalone: 0
+      statements:
+        ExprStmt
+          expr: Call
+            callee: Variable: `print`
+            arg0: FString
+              frag0: Literal: `x is >= 30: `
+              frag1: Variable: `x`
+Block
+  is_standalone: 1
+  statements:
+    VarDecl
+      kind: VarKind::Local
+      name0: y
+      initializer: Binary `+`
+        left: Variable: `x`
+        right: Literal: `29`
+    If
+      condition: Binary `<`
+        left: Variable: `y`
+        right: Literal: `60`
+      then: Block
+        is_standalone: 0
+        statements:
+          ExprStmt
+            expr: Call
+              callee: Variable: `print`
+              arg0: FString
+                frag0: Literal: `y is < 60: `
+                frag1: Variable: `y`
+      else: If
+        condition: Binary `==`
+          left: Literal: `60`
+          right: GeneratedVariable: `y`
+        then: Block
+          is_standalone: 0
+          statements:
+            ExprStmt
+              expr: Call
+                callee: Variable: `print`
+                arg0: FString
+                  frag0: Literal: `y is `
+                  frag1: Variable: `y`
+        else: If
+          condition: Binary `==`
+            left: Binary `**`
+              left: Variable: `y`
+              right: Literal: `0.5`
+            right: Literal: `8`
+          then: Block
+            is_standalone: 0
+            statements:
+              ExprStmt
+                expr: Call
+                  callee: Variable: `print`
+                  arg0: FString
+                    frag0: Literal: `sqrt(y) is 8: `
+                    frag1: Variable: `y`
+          else: If
+            condition: Call
+              callee: Grouping
+                expr: Lambda
+                  name: <anon>
+                  param0: Variable: `z`
+                  body: Block
+                    is_standalone: 0
+                    statements:
+                      Return
+                        retval0: Binary `>`
+                          left: Variable: `z`
+                          right: Literal: `60`
+              arg0: Variable: `y`
+            then: Block
+              is_standalone: 0
+              statements:
+                ExprStmt
+                  expr: Call
+                    callee: Variable: `print`
+                    arg0: FString
+                      frag0: Literal: `y is > 60: `
+                      frag1: Variable: `y`
+            else: Block
+              is_standalone: 0
+              statements:
+                ExprStmt
+                  expr: Call
+                    callee: Variable: `print`
+                    arg0: Literal: `"Everything else goes here."`
+VarDecl
+  kind: VarKind::Local
+  name0: g
+  initializer: Lambda
+    name: <anon>
+    param0: Variable: `y`
+    param1: Variable: `f`
+    body: Block
+      is_standalone: 0
+      statements:
+        Assignment `=`
+          value: Call
+            callee: Variable: `__PPGA_INTERNAL_DEFAULT`
+            arg0: Variable: `f`
+            arg1: Grouping
+              expr: Lambda
+                name: <anon>
+                param0: Variable: `x`
+                body: Block
+                  is_standalone: 0
+                  statements:
+                    Return
+                      retval0: Variable: `x`
+          var0: Variable: `f`
+        ExprStmt
+          expr: Call
+            callee: Variable: `print`
+            arg0: Call
+              callee: Variable: `f`
+              arg0: Variable: `y`
+ExprStmt
+  expr: Call
+    callee: Variable: `g`
+    arg0: Literal: `12`
+ExprStmt
+  expr: Call
+    callee: Variable: `g`
+    arg0: Literal: `12`
+    arg1: Lambda
+      name: <anon>
+      param0: Variable: `x`
+      body: Block
+        is_standalone: 0
+        statements:
+          Return
+            retval0: Binary `*`
+              left: Variable: `x`
+              right: Variable: `x`
+For
+  is_fori: false
+  vars:
+    var0: Variable: `i`
+  condition:   ForCondition::Range
+    start: 1
+    step: 1
+    stop: 10
+  body: Block
+    is_standalone: 0
+    statements:
+      VarDecl
+        kind: VarKind::Local
+        name0: fib
+        initializer: ArrayLiteral
+          val0: Literal: `0`
+          val1: Literal: `1`
+      ExprStmt
+        expr: LuaBlock (...)
+      ExprStmt
+        expr: Call
+          callee: Variable: `print`
+          arg0: GetItem
+            obj: Variable: `fib`
+            item: Binary `-`
+              left: Len
+                expr: Variable: `fib`
+              right: Literal: `1`
+VarDecl
+  kind: VarKind::Local
+  name0: container
+  initializer: ArrayLiteral
+    val0: Literal: `1`
+    val1: Literal: `2`
+    val2: Literal: `3`
+Assignment `=`
+  value: Literal: `"hello"`
+  var0: GetItem
+    obj: Variable: `container`
+    item: Literal: `"string"`
+For
+  is_fori: false
+  vars:
+    var0: Variable: `key`
+    var1: Variable: `value`
+  condition:   ForCondition::Exprs
+    expr0: Variable: `container`
+  body: Block
+    is_standalone: 0
+    statements:
+      ExprStmt
+        expr: Call
+          callee: Variable: `print`
+          arg0: Variable: `key`
+          arg1: Variable: `value`
+For
+  is_fori: true
+  vars:
+    var0: Variable: `idx`
+    var1: Variable: `value`
+  condition:   ForCondition::Exprs
+    expr0: Variable: `container`
+  body: Block
+    is_standalone: 0
+    statements:
+      ExprStmt
+        expr: Call
+          callee: Variable: `print`
+          arg0: Variable: `idx`
+          arg1: Variable: `value`
+VarDecl
+  kind: VarKind::Local
+  name0: fail
+  initializer: Literal: `false`
+FuncDecl
+  kind: local
+  name: may_fail
+  body: Block
+    is_standalone: 0
+    statements:
+      If
+        condition: Variable: `fail`
+        then: Block
+          is_standalone: 0
+          statements:
+            Return
+              retval0: Literal: `nil`
+              retval1: Literal: `"error"`
+        else:  (none)
+      Return
+        retval0: Literal: `"success"`
+        retval1: Literal: `nil`
+FuncDecl
+  kind: local
+  name: another_fail
+  body: Block
+    is_standalone: 0
+    statements:
+      Return
+        retval0: Literal: `nil`
+        retval1: Literal: `"error 2"`
+FuncDecl
+  kind: local
+  name: recovery
+  body: Block
+    is_standalone: 0
+    statements:
+      Return
+        retval0: Literal: `"recovered"`
+        retval1: Literal: `nil`
+FuncDecl
+  kind: local
+  name: main
+  body: Block
+    is_standalone: 0
+    statements:
+      StmtSequence
+          VarDecl
+            kind: VarKind::Local
+            name0: ok
+            initializer: Literal: `nil`
+          Block
+            is_standalone: 1
+            statements:
+              VarDecl
+                kind: VarKind::Local
+                name0: _ok_L150S3613
+                name1: _err_L150S3613
+                initializer: Call
+                  callee: Variable: `__PPGA_INTERNAL_HANDLE_ERR`
+                  arg0: Variable: `__PPGA_INTERNAL_DFLT_ERR_CB`
+                  arg1: Call
+                    callee: Variable: `may_fail`
+              If
+                condition: Binary `!=`
+                  left: GeneratedVariable: `_err_L150S3613`
+                  right: Literal: `nil`
+                then: Block
+                  is_standalone: 0
+                  statements:
+                    Return
+                      retval0: Literal: `nil`
+                      retval1: GeneratedVariable: `_err_L150S3613`
+                else:  (none)
+              Assignment `=`
+                value: GeneratedVariable: `_ok_L150S3613`
+                var0: Variable: `ok`
+      ExprStmt
+        expr: Call
+          callee: Variable: `print`
+          arg0: FString
+            frag0: Literal: `First result: `
+            frag1: Variable: `ok`
+      StmtSequence
+          VarDecl
+            kind: VarKind::Local
+            name0: ok
+            initializer: Literal: `nil`
+          Block
+            is_standalone: 1
+            statements:
+              VarDecl
+                kind: VarKind::Local
+                name0: _ok_L171S4274
+                name1: _err_L171S4274
+                initializer: Call
+                  callee: Variable: `__PPGA_INTERNAL_HANDLE_ERR`
+                  arg0: Variable: `__PPGA_INTERNAL_DFLT_ERR_CB`
+                  arg1: Call
+                    callee: Variable: `__PPGA_INTERNAL_HANDLE_ERR`
+                    arg0: Lambda
+                      name: <anon>
+                      param0: GeneratedVariable: `err`
+                      body: Block
+                        is_standalone: 0
+                        statements:
+                          ExprStmt
+                            expr: Call
+                              callee: Variable: `print`
+                              arg0: FString
+                                frag0: Literal: `An error has occurred: `
+                                frag1: Variable: `err`
+                          Return
+                            retval0: Unary `...`
+                              operand: Call
+                                callee: Variable: `recovery`
+                    arg1: Call
+                      callee: Variable: `another_fail`
+              If
+                condition: Binary `!=`
+                  left: GeneratedVariable: `_err_L171S4274`
+                  right: Literal: `nil`
+                then: Block
+                  is_standalone: 0
+                  statements:
+                    Return
+                      retval0: Literal: `nil`
+                      retval1: GeneratedVariable: `_err_L171S4274`
+                else:  (none)
+              Assignment `=`
+                value: GeneratedVariable: `_ok_L171S4274`
+                var0: Variable: `ok`
+      Return
+        retval0: Variable: `ok`
+VarDecl
+  kind: VarKind::Local
+  name0: res
+  initializer: Call
+    callee: Variable: `main`
+ExprStmt
+  expr: Call
+    callee: Variable: `print`
+    arg0: FString
+      frag0: Literal: `Main returned: `
+      frag1: Variable: `res`

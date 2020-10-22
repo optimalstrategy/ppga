@@ -65,7 +65,7 @@ if x < 20 {
 
 // A match statement is a handy replacement for a bunch of chained if statements
 match x + 29 as y {
-    // Checks that invole the bound variable (y in this case)
+    // Checks that involve the bound variable (y in this case)
     // transpile to "value" conditions: if y < 60 then ... end
     y < 60 {
         print(f"y is < 60: {y}");
@@ -126,7 +126,7 @@ fori idx, value in container {
     print(idx, value);
 }
 
-// Error handling works Go-style: all error-hanlding facilities expect a tuple of (ok, err),
+// Error handling works Go-style: all error-handling facilities expect a tuple of (ok, err),
 // where either of the elements, but not both, is nil.
 let fail = false;
 fn may_fail() {
@@ -145,7 +145,7 @@ fn recovery() {
 }
 
 fn main() {
-    // The ? operator simplifies Go-style error hanlding.
+    // The ? operator simplifies Go-style error handling.
     // By default, this will make the whole program crash if an error is encountered.
     let ok = may_fail()?;
 

@@ -111,9 +111,16 @@ pub fn stmt_to_lua<'a>(stmt: &Stmt<'a>, config: &PPGAConfig, depth: usize) -> St
         StmtKind::For(r#for) => {
             code.push_and_pad("for ", depth)
                 .append(match &r#for.condition {
-                    ForCondition::Range(range) => {
-                        format!("i = {}, {}, {}", range.start, range.end, range.step)
-                    }
+                    ForCondition::Range(range) => format!(
+                        "{} = {}, {}, {}",
+                        match r#for.vars.first().unwrap().kind {
+                            ExprKind::Param(v, _) => v,
+                            _ => unreachable!(),
+                        },
+                        range.start,
+                        range.end,
+                        range.step
+                    ),
                     ForCondition::Exprs(exprs) => format!(
                         "{} in {}",
                         r#for
@@ -190,15 +197,16 @@ pub fn stmt_to_lua<'a>(stmt: &Stmt<'a>, config: &PPGAConfig, depth: usize) -> St
             code.push_and_pad(expr_to_lua(&expr, config, depth), depth);
         }
         StmtKind::Assignment(vars, op, value) => {
+            let vars = vars.iter()
+                .map(|v| expr_to_lua(&v, config, depth))
+                .collect::<Vec<_>>()
+                .join(", ");
             code.push_and_pad(
                 format!(
                     "{} {} {}",
-                    vars.iter()
-                        .map(|v| expr_to_lua(&v, config, depth))
-                        .collect::<Vec<_>>()
-                        .join(", "),
+                    vars,
                     match *op {
-                        "**=" => format!("= {} {}", expr_to_lua(&value, config, depth), "^"),
+                        "**=" => format!("= {} {} ", vars, "^"),
                         rest => rest.to_string(),
                     },
                     expr_to_lua(&value, config, depth)
