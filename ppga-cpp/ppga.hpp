@@ -31,15 +31,6 @@
 #define PPGA_PARSER_INSTANTLY_FAIL 0
 #endif
 
-#define PPGA_PARSER_LOG(name) \
-    if (PPGA_DEBUG && PPGA_PARSER_DEBUG) { \
-        std::cout << #name << ":\n    previous = "; \
-        if (this->current > 0) std::cout << this->previous(); \
-        else std::cout << "..."; \
-        std::cout << "\n    current = " << this->peek() << std::endl; \
-    }
-#define PPGA_PARSER_LOG_EXPR(expr) if (PPGA_DEBUG && PPGA_PARSER_DEBUG) { std::cout << (expr) << std::endl; }
-
 namespace ppga {
 namespace constants {
 using namespace std::string_view_literals;
@@ -1326,6 +1317,20 @@ std::vector<T> make_vector() {
 } // utils
 
 namespace parser {
+#if PPGA_DEBUG == 1 && PPGA_PARSER_DEBUG == 1
+#define PPGA_PARSER_LOG(name) \
+    { \
+        std::cout << #name << ":\n    previous = "; \
+        if (this->current > 0) std::cout << this->previous(); \
+        else std::cout << "..."; \
+        std::cout << "\n    current = " << this->peek() << std::endl; \
+    }
+#define PPGA_PARSER_LOG_EXPR(expr) { std::cout << (expr) << std::endl; }
+#else
+#define PPGA_PARSER_LOG(_) (void)0;
+#define PPGA_PARSER_LOG_EXPR(_) (void)0;
+#endif
+
 using namespace lexer;
 
 template<typename T>
@@ -2301,6 +2306,9 @@ private:
         PPGA_PARSER_LOG_EXPR(ex.errors[ex.errors.size() - 1]);
     }
 };
+
+#undef PPGA_PARSER_LOG
+#undef PPGA_PARSER_LOG_EXPR
 } // parser
 
 namespace visitors {
