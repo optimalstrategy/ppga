@@ -170,6 +170,10 @@ struct ErrCtx {
     }
 
 private:
+    /// Finds the offset of the first character prepended by a newline to the left of the span start,
+    /// but only if it is located within `constants::PPGA_ERROR_LINE_MAX_LENGTH` characters.
+    /// The boolean pair member indicates whether the search stopped at a max length boundary
+    /// (in other words, whether the line was truncated).
     inline static std::pair<size_t, bool> find_error_line_start(const PPGAError& e) {
         size_t line_start = e.span.start;
         while (line_start > 0 && e.span.source.at(--line_start) != '\n'
@@ -179,7 +183,8 @@ private:
             e.span.start - line_start >= constants::PPGA_ERROR_LINE_MAX_LENGTH
         };
     }
-
+    /// Finds the offset of the first newline to the right of the span end, but only if it is located within
+    /// `constants::PPGA_ERROR_LINE_MAX_LENGTH` characters.
     inline static size_t find_error_line_end(const PPGAError& e) {
         size_t line_end = e.span.end - 1;
         while (line_end < e.span.source.size() && e.span.source.at(++line_end) != '\n'
@@ -187,10 +192,13 @@ private:
         return line_end;
     }
 
+    /// Computers the 1-based column number number of the given span.
     inline static size_t compute_column(const PPGAError& e, size_t line_start) noexcept {
         return e.span.start - line_start + 1; // +1 because columns are 1-based
     }
 
+    /// Generates an error message highlight. The error line will be truncated if it's longer than
+    /// `constants::PPGA_ERROR_LINE_MAX_LENGTH`, in which case the the column value will also be set to `xx`.
     [[nodiscard]]
     static std::string highlight_error(const PPGAError& e) {
         auto [line_start, truncated] = find_error_line_start(e);
@@ -220,6 +228,7 @@ using namespace std::string_view_literals;
 
 class Token;
 
+/// The possible kinds of PPGA tokens.
 enum class TokenKind {
     /// A single dot: `.`. Used in attribute access expressions.
     Dot,
@@ -362,6 +371,7 @@ enum class TokenKind {
     EndOfFile,
 };
 
+/// Writes the name of the given token kind to the given `std::ostream`.
 inline std::ostream& operator<<(std::ostream& out, const TokenKind kind) {
     const char* s;
 #define PROCESS_VAL(p) case(TokenKind :: p): s = #p; break;
@@ -441,6 +451,8 @@ inline std::ostream& operator<<(std::ostream& out, const TokenKind kind) {
     return out;
 }
 
+/// The fragment if an f-string. Only either of the fields `inner_tokens` and `string_fragment` is initialized
+/// at any given time. The field `is_string` should be used to determine the initialized field.
 struct FStringFragment {
     std::vector<Token> inner_tokens;
     std::string_view string_fragment;
@@ -457,6 +469,7 @@ struct FStringFragment {
 };
 
 
+/// PPGA's keywords. Used by the lexer.
 static const std::unordered_map<std::string_view, TokenKind> KEYWORDS = {
         {"range"sv, TokenKind::Range},
         {"len"sv, TokenKind::Len},
@@ -481,8 +494,11 @@ static const std::unordered_map<std::string_view, TokenKind> KEYWORDS = {
         {"not"sv, TokenKind::Not}
 };
 
+/// A struct containing the span, kind, and payload of a scanned token.
 class Token {
+    /// The span of the token.
     Span span_;
+    /// The kind of the token.
     TokenKind kind_;
 
     /// The payload of the token. Contents are determined by the kind.
@@ -496,6 +512,8 @@ public:
     explicit Token(Span span, TokenKind kind)
         : span_(span), kind_(kind), payload(std::nullopt) {}
 
+    /// Creates a new token with the payload initialized
+    /// with the given vector of f-string fragments.
     static Token fstring(
         Span span,
         TokenKind kind,
@@ -507,42 +525,50 @@ public:
         return token;
     }
 
+    /// Creates a new token with the payload initialized with the given lua block contents.
     static Token lua_block(Span span, std::string_view contents) {
         auto token = Token(span, TokenKind::Lua);
         token.payload = contents;
         return token;
     }
 
+    /// Returns the lexeme of the token.
     [[nodiscard]]
     constexpr inline std::string_view lexeme() const {
         return span_.slice();
     }
 
+    /// Returns `true` if the token has a payload.
     [[nodiscard]]
     constexpr inline bool has_payload() const noexcept {
         return payload.has_value();
     }
 
+    /// Returns the lua payload or throws an exception if there is none.
     [[nodiscard]]
     inline std::string_view get_lua_payload() const {
         return std::get<std::string_view>(payload.value());
     }
 
+    /// Returns the f-string payload or throws an exception if there is none.
     [[nodiscard]]
     inline std::vector<FStringFragment>& get_fstring_payload() {
         return std::get<std::vector<FStringFragment>>(payload.value());
     }
 
+    /// Returns the kind of the token.
     [[nodiscard]]
     constexpr inline TokenKind kind() const noexcept {
         return kind_;
     }
 
+    /// Returns a reference to the span of the token.
     [[nodiscard]]
     constexpr inline const Span& span() const noexcept {
         return span_;
     }
 
+    /// Writes a debug representation of the token to the given stream.
     friend std::ostream& operator<<(std::ostream& out, const Token& token) {
         out << "Token {\n    span = " << token.span() << ",\n    kind = " << token.kind()
             << ",\n    payload = " << (token.has_payload() ? "..." : "()") << "\n}";
@@ -550,15 +576,22 @@ public:
     }
 };
 
+/// PPGA's lexer used for tokenizing source code.
 class Lexer {
+    /// A pointer to the source code. This pointer must be valid for the whole duration of the pipeline.
     std::string_view source;
+    /// The offset of the current character.
     size_t current;
+    /// The current line.
     size_t line;
+    /// The list of scanned tokens.
     std::vector<Token> tokens;
 public:
     explicit Lexer(std::string_view source)
             : source(source), current(0), line(1), tokens(std::vector<Token>{}) {}
 
+    /// Attempts to tokenize the source code, writing any errors to the given error context.
+    /// Returns an optional of the token vector or `std::nullopt`.
     std::optional<std::vector<Token>> lex(error::ErrCtx& ex) noexcept {
         while (!is_at_end()) {
             tokens.push_back(next_token(ex));
@@ -570,6 +603,7 @@ public:
         return ex.had_error() ? std::nullopt : std::optional(std::move(this->tokens));
     }
 
+    /// Scans the next token.
     Token next_token(error::ErrCtx& ex) noexcept {
         skip_whitespace();
 
@@ -671,6 +705,8 @@ public:
         return Token(span(start, tok_line), kind);
     }
 
+    /// Scans a string literal ending with the given quote character. The opening quote
+    /// must be advanced before the call to this method.
     Token string(error::ErrCtx& ex, char quote) {
         auto start = current - 1;
         auto start_line = line;
@@ -695,6 +731,7 @@ public:
         return Token(span(start, start_line), TokenKind::StringLiteral);
     }
 
+    /// Scans a number in the format `\d+(\.\d*)?`.
     Token number() noexcept {
         auto start = current - 1;
 
@@ -711,6 +748,8 @@ public:
         return Token(span(start), TokenKind::Number);
     }
 
+    /// Scans an identifier in the format `[aA-zZ_][aA-zZ_0-9]*`.
+    /// If the identifier matches a PPGA keyword, the respective keyword token will be created.
     Token identifier(error::ErrCtx& ex) noexcept {
         if (previous() == 'f' && match("\'\"")) {
             char quote = previous().value();
@@ -740,6 +779,7 @@ public:
         return Token(span, kind);
     }
 
+    /// Scans a lua block, e.g. `lua { ... }`.
     Token lua_block(error::ErrCtx& ex, size_t start) {
         auto start_line = line;
         skip_whitespace();
@@ -772,6 +812,7 @@ public:
         );
     }
 
+    /// Scans an f-string closed with the given quote character.
     Token fstring(error::ErrCtx& ex , char quote) {
         auto start = current - 2;
         auto start_line = line;
@@ -1017,17 +1058,23 @@ struct VarDecl;
 struct Assignment;
 struct Break;
 
+/// The abstract class for all as nodes.
 struct Node {
+    /// The method used to implement the visitor pattern.
     virtual void accept(Visitor& visitor) = 0;
+    /// Returns the name of the derived class using the `typeid` operator.
     [[nodiscard]]
     virtual std::string name() const { return typeid(*this).name(); };
 };
+/// A statement node.
 struct Stmt : public Node {};
+/// An expression node.
 struct Expr : public Node {};
 
 using ExprPtr = std::unique_ptr<Expr>;
 using StmtPtr = std::unique_ptr<Stmt>;
 
+/// The visitor abstract class.
 struct Visitor {
     virtual void visit(AST& ast)  = 0;
     virtual void visit(Expr& expr) = 0;
@@ -1060,6 +1107,14 @@ struct Visitor {
     virtual void visit(Break& break_) = 0;
 };
 
+/// A helper class for reducing boilerplate.
+/// The provided `accept()` method will cast the `this` pointer to `Derived*`
+/// and call Visitor::visit(Derived*), thus dispatching the visit.
+///
+/// The `Derived` type must directly inherit the Visitable! Otherwise, the visitor will attempt to cast `this`
+/// to a type that doesn't derive from it, leading to a SIGSEGV.
+///
+/// Setting `PPGA_DEBUG` to 1 enables dynamic checks of cast.
 template<class Base, class Derived>
 struct Visitable : public Base {
     Visitable() : Base() {}
@@ -1079,36 +1134,51 @@ struct Visitable : public Base {
     }
 };
 
+/// The data of a PPGA function.
 struct FunctionData {
+    /// The function's name. This field is `std::nullopt` for lambdas.
     std::optional<std::string_view> name;
+    /// The parameters the function takes.
     std::vector<ExprPtr> params;
+    /// The body of the function as a block.
     StmtPtr body;
 };
 
+/// A literal value such as `3.141592`, `true`, `nil`, or "str".
+/// The `is_string` field indicates whether the value is a string.
 struct Literal : public Visitable<Expr, Literal> {
+    /// The lexeme of the literal.
     std::string_view value;
+    /// The marker indicating whether the literal is a string.
     bool is_string{false};
     explicit Literal(std::string_view value) : Visitable(), value(value) {};
     explicit Literal(std::string_view value, bool is_string)
         : Visitable(), value(value), is_string(is_string) {};
 };
 
+/// The `len()` operator. Transpiles to `#` in Lua.
 struct Len : public Visitable<Expr, Len> {
     ExprPtr expr;
     explicit Len(ExprPtr expr) : Visitable(), expr(std::move(expr)) {};
 };
 
+/// A lua block. Such blocks are directly pasted into the resulting lua file.
 struct LuaBlock : public Visitable<Expr, LuaBlock> {
+    /// The contents of the block with `lua {` and `}` stripped.
     std::string_view contents;
     explicit LuaBlock(std::string_view contents) : Visitable(), contents(contents) {};
 };
 
+/// A variable originating in the source code.
 struct Variable : public Visitable<Expr, Variable> {
+    /// The name of the variable as a pointer into the source code.
     std::string_view name;
     explicit Variable(std::string_view name) : Visitable(), name(name) {};
 };
 
+/// A variable that was generated dynamically.
 struct GeneratedVariable : public Visitable<Expr, GeneratedVariable> {
+    /// The name of the variable as an owned string.
     std::string name;
     explicit GeneratedVariable(std::string&& name) : Visitable(), name(std::move(name)) {};
 };
@@ -1118,44 +1188,64 @@ struct FString : public Visitable<Expr, FString> {
      explicit FString(std::vector<ExprPtr>&& fragments) : Visitable(), fragments(std::move(fragments)) {}
 };
 
+/// An attribute.access expression. The `is_static` fields indicates if the access is static,
+/// i.e. uses a `:` instead of a `.`.
 struct Get : public Visitable<Expr, Get> {
+    /// Object to access the attribute on.
     ExprPtr obj;
+    /// The name of the attribute.
     std::string_view attr;
+    /// Whether the access is static.
     bool is_static;
     explicit Get(ExprPtr obj, std::string_view attr, bool is_static)
         : Visitable(), obj(std::move(obj)), attr(attr), is_static(is_static) { }
 };
 
+/// A get[item] expression.
 struct GetItem : public Visitable<Expr, GetItem> {
+    /// The object to get the item from.
     ExprPtr obj;
+    /// The item or "key".
     ExprPtr item;
     explicit GetItem(ExprPtr obj, ExprPtr item)
         : Visitable(), obj(std::move(obj)), item(std::move(item)) {}
 };
 
+/// A function call expression.
 struct Call : public Visitable<Expr, Call> {
+    /// The callee object.
     ExprPtr callee;
+    /// The arguments to the function being called.
     std::vector<ExprPtr> args;
     explicit Call(ExprPtr callee, std::vector<ExprPtr>&& args)
         : Visitable(), callee(std::move(callee)), args(std::move(args)) {}
 };
 
+/// A unary operator such as +, -, or !.
 struct Unary : public Visitable<Expr, Unary> {
+    /// The operator lexeme.
     std::string_view op;
+    /// The operand object.
     ExprPtr operand;
 
     explicit Unary(std::string_view op, ExprPtr operand)
         : Visitable(), op(op), operand(std::move(operand)) {}
 };
 
+/// A (grouping) expression.
 struct Grouping : public Visitable<Expr, Grouping> {
+    /// The expression being grouped.
     ExprPtr expr;
     explicit Grouping(ExprPtr expr) : Visitable(), expr(std::move(expr)) {}
 };
 
+/// A binary operator such as +, -, \, or **.
 struct Binary : public Visitable<Expr, Binary> {
+    /// The operator lexeme.
     std::string_view op;
+    /// The left operand.
     ExprPtr left;
+    /// The right operand.
     ExprPtr right;
     explicit Binary(std::string_view op, ExprPtr left, ExprPtr right)
         : Visitable(), op(op), left(std::move(left)), right(std::move(right)) {}
