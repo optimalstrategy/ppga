@@ -15,7 +15,7 @@ int main() {
         auto result = ppga::ppga_to_lua(source);
         std::cout << result << std::flush;
     } catch (std::runtime_error& e){
-        std::cerr << e.what() << std::endl;
+        std::cerr << e.what() << std::flush;
     }
     return 0;
 }
