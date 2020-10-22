@@ -28,7 +28,7 @@ inline std::string ppga_to_lua(
     PPGAConfig config = PPGAConfig{}
 ) /* throws std::runtime_error */;
 
-/// Transpile the given ppga source to lua code. This function will return an option with the lua sorce
+/// Transpile the given ppga source to lua code. This function will return an option with the lua source
 /// or an `std::nullopt` instance with all errors written to the given `ErrCtx`.
 inline std::optional<std::string> ppga_to_lua(
     const std::string_view source,
