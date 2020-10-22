@@ -15,16 +15,25 @@
 #include <type_traits>
 #include <cassert>
 
-#define PPGA_PARSER_DEBUG 1
-#define PPGA_PARSER_INSTANTLY_FAIL 1
+/// Enables parser logging
+#ifndef PPGA_PARSER_DEBUG
+#define PPGA_PARSER_DEBUG 0
+#endif
+
+
+/// Makes the parser terminate after the first fail.
+#ifndef PPGA_PARSER_INSTANTLY_FAIL
+#define PPGA_PARSER_INSTANTLY_FAIL 0
+#endif
+
 #define PPGA_PARSER_LOG(name) \
     if (PPGA_PARSER_DEBUG) { \
         std::cout << #name << ":\n    previous = "; \
         if (this->current > 0) std::cout << this->previous(); \
         else std::cout << "..."; \
-        std::cout << "\n    current = " << this->peek() << "\n"; \
+        std::cout << "\n    current = " << this->peek() << std::endl; \
     }
-
+#define PPGA_PARSER_LOG_EXPR(expr) if (PPGA_PARSER_DEBUG) { std::cout << (expr) << std::endl; }
 
 namespace ppga {
 namespace constants {
@@ -457,7 +466,9 @@ public:
             tokens.push_back(next_token(ex));
         }
         // Push the EOF token
-        // tokens.push_back(next_token(ex));
+        if (tokens.size() == 0 || tokens.at(tokens.size() - 1).kind() != TokenKind::EndOfFile) {
+             tokens.push_back(next_token(ex));
+        }
         return std::move(this->tokens);
     }
 
@@ -697,6 +708,7 @@ public:
                     span = this->span(frag_start);
                     auto sublexer = Lexer(span.slice());
                     std::vector<Token> frag_tokens = sublexer.lex(ex);
+                    frag_tokens.pop_back(); // Pop the EOF
                     frags.emplace_back(frag_tokens);
                     prev_fragment_end = current + 1;
                 }
@@ -1173,6 +1185,9 @@ struct AST {
 
 } // ast
 namespace utils {
+// A helper constant that is always false.
+template<class> inline constexpr bool always_false_v = false;
+
 template <typename>
 struct deduce_arg_type;
 
@@ -1341,9 +1356,14 @@ private:
             return std::make_unique<ast::Break>();
         }
         auto stmt = assignment();
-        if (dynamic_cast<ast::ExprStmt*>(stmt.get()) == nullptr) {
+        if (auto expr = dynamic_cast<ast::ExprStmt*>(stmt.get());
+            expr != nullptr && dynamic_cast<ast::LuaBlock*>(expr->expr.get()) != nullptr)
+        {
+            /* allow lua blocks to be unterminated */
+        } else {
             consume_semicolon("Expected a `;` after the expression");
         }
+        PPGA_PARSER_LOG_EXPR("leaving statement (after assignment())");
         return stmt;
     }
 
@@ -1543,7 +1563,7 @@ private:
         bool any_arm_last = false;
         std::optional<lexer::Span> any_arm_span = std::nullopt;
 
-        while (!check(TokenKind::RightBrace)) {
+        while (!check(TokenKind::RightBrace) && !is_at_end()) {
             any_arm_last = false;
             auto pattern = expression();
             ast::MatchPatKind kind;
@@ -1751,7 +1771,7 @@ private:
                     && dynamic_cast<ast::Get*>(expr.get()) == nullptr
                     && dynamic_cast<ast::GetItem*>(expr.get()) == nullptr
                 ) {
-                    ex.error(span, "Invalid assignment target");
+                    error(span, "Invalid assignment target");
                     throw parser_exception();
                 }
             }
@@ -1759,13 +1779,14 @@ private:
         }
 
         if (exprs.size() > 1) {
-            ex.error(
+            error(
                 previous().span(),
                 "Comma is allowed only in let/global, assignment, and return statements."
             );
             throw parser_exception();
         }
 
+        PPGA_PARSER_LOG_EXPR("leaving assignment");
         return std::make_unique<ast::ExprStmt>(std::move(exprs.at(0)));
     }
 
@@ -1803,7 +1824,9 @@ private:
         if (match<TokenKind::Fn>()) {
             return std::make_unique<ast::Lambda>(lambda());
         }
-        return default_op();
+        auto value = default_op();
+        PPGA_PARSER_LOG_EXPR("leaving expression");
+        return std::move(value);
     }
 
     ast::ExprPtr default_op() {
@@ -1819,6 +1842,8 @@ private:
             expr = std::make_unique<ast::Call>(std::move(callee), std::move(args));
         }
 
+
+        PPGA_PARSER_LOG_EXPR("leaving default_op");
         return expr;
     }
 
@@ -1872,6 +1897,7 @@ private:
             return std::make_unique<ast::Unary>(op, std::move(value));
         }
 
+        PPGA_PARSER_LOG_EXPR("leaving unary");
         return call();
     }
 
@@ -1915,6 +1941,7 @@ private:
             }
         }
 
+        PPGA_PARSER_LOG_EXPR("leaving call");
         return expr;
     }
 
@@ -1978,6 +2005,8 @@ private:
             }
         }
 
+
+        PPGA_PARSER_LOG_EXPR("leaving primary");
         return expr;
     }
 
@@ -2018,6 +2047,8 @@ private:
             args = std::vector<ast::ExprPtr>{};
         }
         consume(TokenKind::RightParen, "Expected a `)` after the argument list");
+
+        PPGA_PARSER_LOG_EXPR("leaving fstring");
         return std::make_unique<ast::Call>(std::move(callee), std::move(args));
     }
 
@@ -2033,6 +2064,7 @@ private:
             args.push_back(expression());
         }
 
+        PPGA_PARSER_LOG_EXPR("leaving arguments");
         return args;
     }
 
@@ -2052,6 +2084,7 @@ private:
             params.push_back(std::make_unique<ast::Variable>(name.lexeme()));
         }
 
+        PPGA_PARSER_LOG_EXPR("leaving parameters");
         return params;
     }
 
@@ -2202,18 +2235,19 @@ private:
 
     [[nodiscard]]
     inline lexer::Token& previous() {
-        return tokens[current - 1];
+        if (current < 1) return tokens.at(current);
+        return tokens.at(current - 1);
     }
 
-    inline lexer::Token& advance() noexcept {
+    inline lexer::Token& advance()  {
         if (current < tokens.size()) ++current;
-        return tokens[current - 1];
+        return previous();
     }
 
     [[nodiscard]]
-    inline const lexer::Token& peek() const noexcept {
-        if (current < tokens.size()) return tokens[current];
-        return tokens[current - 1];
+    inline const lexer::Token& peek() const  {
+        if (current >= tokens.size()) return tokens.at(tokens.size() - 1);
+        return tokens.at(current);
     }
 
     [[nodiscard]]
@@ -2223,18 +2257,287 @@ private:
 
     inline void error(std::string&& message) noexcept {
         ex.error(peek().span(), std::move(message));
+        PPGA_PARSER_LOG(error_encountered);
+        PPGA_PARSER_LOG_EXPR(ex.errors[ex.errors.size() - 1]);
     }
 
     inline void error(const Token& token, std::string&& message) noexcept {
         ex.error(token.span(), std::move(message));
+        PPGA_PARSER_LOG(error_encountered);
+        PPGA_PARSER_LOG_EXPR(ex.errors[ex.errors.size() - 1]);
     }
 
     inline void error(const Span& span, std::string&& message) noexcept {
         ex.error(span, std::move(message));
+        PPGA_PARSER_LOG(error_encountered);
+        PPGA_PARSER_LOG_EXPR(ex.errors[ex.errors.size() - 1]);
     }
 };
-}
+} // parser
 
+namespace visitors {
+using namespace ppga::ast;
+
+#define INNER(stmt) { ++this->depth; { stmt; } --this->depth; }
+
+class ASTPrinter : public Visitor {
+    std::ostringstream ss;
+    size_t depth{1};
+    size_t indent_size;
+
+public:
+    ASTPrinter(size_t indent_size = 2)
+        : Visitor(), indent_size(std::max((size_t) 1, indent_size)) {}
+
+    std::string finish() const {
+        return ss.str();
+    }
+
+    void visit(AST& ast) override {
+        for (const auto& stmt : ast.statements) {
+            visit(*stmt.get());
+        }
+    }
+
+    void visit(Expr& expr) override {
+        expr.accept(*this);
+    }
+
+    void visit(Stmt& stmt) override {
+        stmt.accept(*this);
+    }
+
+    void visit(Literal& lit) override {
+        ss << "Literal: `" << lit.value << "`\n";
+    }
+
+    void visit(Len& len) override {
+        ss << "Len\n";
+        indent() << "expr: ";
+        INNER(visit(*len.expr));
+    }
+
+    void visit(LuaBlock& block) override {
+        ss << "LuaBlock (...)\n";
+    }
+
+    void visit(Variable& var) override {
+        ss << "Variable: `" << var.name << "`\n";
+    }
+
+    void visit(GeneratedVariable& var) override {
+        ss << "GeneratedVariable: `" << var.name << "`\n";
+    }
+
+    void visit(FString& fstring) override {
+        ss << "FString\n";
+        for (size_t i = 0; i < fstring.fragments.size(); ++i) {
+            indent() << "frag" << i << ": ";
+            INNER(visit(*fstring.fragments.at(i)));
+        }
+    }
+
+    void visit(Get& get) override {
+        ss << "Get\n";
+        indent() << "is_static: " << (get.is_static ? "true" : "false") << "\n";
+        indent() << "attr: " << get.attr << "\n";
+        indent() << "obj: ";
+        INNER(visit(*get.obj));
+    }
+
+    void visit(GetItem& get) override {
+        ss << "GetItem\n";
+        indent() << "obj: ";  INNER(visit(*get.obj));
+        indent() << "item: "; INNER(visit(*get.item));
+    }
+
+    void visit(Call& call) override {
+        ss << "Call\n";
+        indent() << "callee: ";
+        INNER(visit(*call.callee));
+        for (size_t i = 0; i < call.args.size(); ++i) {
+            indent() << "arg" << i << ": ";
+            INNER(visit(*call.args.at(i)));
+        }
+    }
+
+    void visit(Unary& unary) override {
+        ss << "Unary `" << unary.op << "`\n";
+        indent() << "operand: ";
+        INNER(visit(*unary.operand));
+    }
+
+    void visit(Binary& binary) override {
+        ss << "Binary `" << binary.op << "`\n";
+        indent() << "left: ";  INNER(visit(*binary.left));
+        indent() << "right: "; INNER(visit(*binary.right));
+    }
+
+    void visit(Grouping& grouping) override {
+        ss << "Grouping\n";
+        indent() << "expr: "; INNER(visit(*grouping.expr));
+    }
+
+    void visit(ArrayLiteral& arr) override {
+        ss << "ArrayLiteral\n";
+        for (size_t i = 0; i < arr.values.size(); ++i) {
+            indent() << "val" << i << ": ";
+            INNER(visit(*arr.values.at(i)));
+        }
+    }
+
+    void visit(DictLiteral& dict) override {
+        ss << "DictLiteral\n";
+        for (size_t i = 0; i < dict.pairs.size(); ++i) {
+            indent() << "key" << i << ": "; INNER(visit(*dict.pairs.at(i).first));
+            indent() << "val" << i << ": "; INNER(visit(*dict.pairs.at(i).second));
+        }
+    }
+
+    void visit(Lambda& lambda) override {
+        ss << "Lambda\n";
+        visit(lambda.data);
+    }
+
+    void visit(ExprStmt& expr) override {
+        ss << "ExprStmt\n";
+        indent() << "expr: ";
+        INNER(visit(*expr.expr));
+    }
+
+    void visit(If& conditional) override {
+        ss << "If\n";
+        indent() << "condition: "; INNER(visit(*conditional.condition));
+        indent() << "then: ";      INNER(visit(*conditional.then));
+        indent() << "else: ";
+        if (conditional.otherwise.has_value()) {
+            INNER(visit(*conditional.otherwise.value()));
+        } else {
+            ss << " (none)\n";
+        }
+    }
+
+    void visit(For& loop) override {
+        ss << "For\n";
+        indent() << "is_fori: " << (loop.is_fori ? "true" : "false") << "\n";
+        indent() << "vars:\n";
+        for (size_t i = 0; i < loop.vars.size(); ++i) {
+            INNER({
+                indent() << "var" << i << ": ";
+                INNER(visit(*loop.vars.at(i)));
+            });
+        }
+        indent() << "condition: ";
+        std::visit([this](const auto& arg) {
+            using T = std::decay_t<decltype(arg)>;
+            if constexpr (std::is_same_v<T, Range>) {
+                indent() << "ForCondition::Range\n";
+                INNER({
+                    indent() << "start: " << arg.start << "\n";
+                    indent() << "step: " << arg.step << "\n";
+                    indent() << "stop: " << arg.end << "\n";
+                });
+            } else if constexpr (std::is_same_v<T, std::vector<ExprPtr>>) {
+                indent() << "ForCondition::Exprs\n";
+                INNER({
+                    for (size_t i = 0; i < arg.size(); ++i) {
+                        indent() << "expr" << i << ": ";
+                        INNER(visit(*arg.at(i)));
+                    }
+                });
+            } else {
+                static_assert(utils::always_false_v<T> , "non-exhaustive visitor!");
+            }
+        }, loop.condition);
+        indent() << "body: "; INNER(visit(*loop.body));
+    }
+
+    void visit(While& loop) override {
+        ss << "While\n";
+        indent() << "condition: "; INNER(visit(*loop.condition));
+        indent() << "body: "; INNER(visit(*loop.body));
+    }
+
+    void visit(Block& block) override {
+        ss << "Block\n";
+        ss << "is_standalone: " << block.is_standalone << "\n";
+        ss << "statements:\n";
+        INNER({
+            for (const auto& stmt : block.statements) {
+                visit(*stmt);
+            }
+        });
+    }
+
+    void visit(StmtSequence& seq) override {
+        ss << "StmtSequence\n";
+        INNER({
+            for (const auto& stmt : seq.statements) {
+                visit(*stmt);
+            }
+        });
+    }
+
+    void visit(Return& ret) override {
+        ss << "Return\n";
+        for (size_t i = 0; i < ret.values.size(); ++i) {
+            indent() << "retval" << i << ": ";
+            INNER(visit(*ret.values.at(i)));
+        }
+    }
+
+    void visit(FuncDecl& decl) override {
+        ss << "FuncDecl\n";
+        visit(decl.data);
+    }
+
+    void visit(VarDecl& decl) override {
+        ss << "VarDecl\n";
+        indent() << "kind: " << (decl.kind == VarKind::Local ? "VarKind::Local" : "VarKind::Global") << "\n";
+        for (size_t i = 0; i < decl.names.size(); ++i) {
+            indent() << "name" << i << ": " << decl.names[i] << "\n";
+        }
+        indent() << "initializer: ";
+        if (decl.initializer.has_value()) {
+            INNER(visit(*decl.initializer.value()));
+        } else {
+            indent() << " (none)";
+        }
+    }
+
+    void visit(Assignment& ass) override {
+        ss << "Assignment `" << ass.op << "`\n";
+        indent() << "value: "; INNER(visit(*ass.value));
+        for (size_t i{}; i < ass.vars.size(); ++i) {
+            indent() << "var" << i << ": ";
+        INNER(visit(*ass.vars.at(i)));
+        }
+    }
+
+    void visit(Break&) override {
+        ss << "Break";
+    }
+
+    void visit(FunctionData& data) {
+        indent() << "name: " << data.name.value_or("<anon>") << "\n";
+        for (size_t i = 0; i < data.params.size(); ++i) {
+            indent() << "param" << i << ": ";
+            INNER(visit(*data.params.at(i)));
+        }
+        indent() << "body: "; INNER(visit(*data.body));
+    }
+
+    std::ostringstream& indent() noexcept {
+        size_t count = depth * indent_size;
+        while (count-- > 0) {
+            ss << " ";
+        }
+        return ss;
+    }
+};
+
+#undef INNER
+} // visitors
 
 inline std::string ppga_to_lua(const std::string& source, PPGAConfig config) {
     auto ex = ppga::error::ErrCtx{};

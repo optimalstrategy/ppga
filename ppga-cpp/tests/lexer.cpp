@@ -112,8 +112,9 @@ TEST(LexerTests, TestFStringScanning) {
     auto lexer = ppga::lexer::Lexer(source);
     auto result = lexer.lex(ex);
 
-    EXPECT_EQ(result.size(), 1);
+    EXPECT_EQ(result.size(), 2);
     EXPECT_EQ(result[0].kind(), TokenKind::FString);
+    EXPECT_EQ(result[1].kind(), TokenKind::EndOfFile);
 
     auto& payload = result[0].get_fstring_payload();
     EXPECT_EQ(payload.size(), 4);

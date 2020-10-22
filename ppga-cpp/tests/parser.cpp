@@ -25,16 +25,37 @@ TEST(ParserTests, TestPrimitiveExpressions) {
     auto result = lexer.lex(ex);
 
     EXPECT_EQ(ex.had_error(), false) << err_to_string(ex);
-    if (ex.had_error()) {
-        return;
-    }
+    if (ex.had_error()) return;
 
     auto parser = ppga::parser::Parser(std::move(result), ppga::PPGAConfig{});
-    auto ast = parser.parse(ex);
+    auto maybe_ast = parser.parse(ex);
 
     EXPECT_EQ(ex.had_error(), false) << err_to_string(ex);
-    if (ex.had_error()) {
-        return;
-    }
+    if (ex.had_error()) return;
+
+    auto ast = std::move(maybe_ast.value());
+    auto printer = ppga::visitors::ASTPrinter();
+    printer.visit(ast);
+
+    std::string output = printer.finish();
+    EXPECT_EQ(output,
+  R"(VarDecl
+  kind: VarKind::Local
+  name0: a
+  initializer: Binary `+`
+    left: Literal: `2`
+    right: Literal: `1`
+ExprStmt
+  expr: Call
+    callee: Variable: `print`
+    arg0: Literal: `"x"`
+    arg1: Variable: `x`
+ExprStmt
+  expr: Call
+    callee: Variable: `print`
+    arg0: FString
+      frag0: Variable: `a`
+      frag1: Literal: ` string`
+)");
 }
 }  // namespace
