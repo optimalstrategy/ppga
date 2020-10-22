@@ -1446,10 +1446,10 @@ private:
                     std::make_unique<ast::Literal>("nil"sv)
             );
 
-            std::ostringstream ok_name("_ok_L");
-            ok_name << query.span().line << "S" << query.span().start;
-            std::ostringstream err_name("_err_L");
-            err_name << query.span().line << "S" << query.span().start;
+            std::ostringstream ok_name;
+            ok_name << "_ok_L" << query.span().line << "S" << query.span().start;
+            std::ostringstream err_name;
+            err_name << "_err_L" << query.span().line << "S" << query.span().start;
             std::vector<ast::ExprPtr> assignment_var;
             assignment_var.emplace_back(make_var(target_var));
 
