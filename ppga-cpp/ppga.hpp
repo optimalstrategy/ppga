@@ -1123,13 +1123,13 @@ struct Visitable : public Base {
             std::is_base_of_v<Visitable<Base, Derived>, Derived>,
             "Derived must derive from Visitable<Base, Derived>"
         );
-        if (PPGA_DEBUG) {
-            std::cout << "Visiting " << this << " " << this->name() << std::endl;
-            if (dynamic_cast<Derived*>(this) == nullptr) {
-                std::cerr << "Couldn't cast this = " << this << " to " << typeid(Derived).name() << std::endl;
-                std::abort();
-            }
+#if PPGA_DEBUG == 1
+        std::cout << "Visiting " << this << " " << this->name() << std::endl;
+        if (dynamic_cast<Derived*>(this) == nullptr) {
+            std::cerr << "Couldn't cast this = " << this << " to " << typeid(Derived).name() << std::endl;
+            std::abort();
         }
+#endif
         visitor.visit(*static_cast<Derived*>(this));
     }
 };
@@ -1532,7 +1532,9 @@ public:
             } catch (parser_exception& ignored) {
                 synchronize();
                 user_ex.extend(this->ex);
-                if (PPGA_PARSER_DEBUG && PPGA_PARSER_INSTANTLY_FAIL) break;
+#if PPGA_PARSER_INSTANTLY_FAIL == 1
+                break;
+#endif
             }
         }
 
