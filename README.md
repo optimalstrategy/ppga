@@ -228,7 +228,7 @@ The "fat arrow" syntax can be used if the function's body is a single expression
 </tr>
 <tr>
 <td>Ellipsis / Unpacking</td>
-<td><pre lang="lua">
+<td><pre lang="rust">
 
     fn f(x) {
         fn packed() {
@@ -236,12 +236,15 @@ The "fat arrow" syntax can be used if the function's body is a single expression
         }
 
         if not x {
-            // returns the result of packed as a
-            return packed();  // => return (packed())
+            // returns the result of packed 
+            // as a single value:
+            // => return (packed())
+            return packed();  
         }
 
-        // unpacks the result of packed() as two values
-        return ...packed();  // => return unpack({packed()})
+        // unpacks the result of packed() as two values:
+        // => return unpack({packed()})
+        return ...packed();  
     }
 </pre></td>
 <td><pre lang="lua">
@@ -262,7 +265,7 @@ The "fat arrow" syntax can be used if the function's body is a single expression
 </tr>
 <tr>
 <td>For Loop (ranges)</td>
-<td><pre lang="lua">
+<td><pre lang="rust">
 
     // From 0 to 3
     for i in range(3) {
@@ -297,7 +300,7 @@ The "fat arrow" syntax can be used if the function's body is a single expression
 </tr>
 <tr>
 <td>For Loop (containers)</td>
-<td><pre lang="lua">
+<td><pre lang="rust">
 
     let container = [1, 2, 3];
     container["string"] = "hello";
@@ -339,8 +342,9 @@ The "fat arrow" syntax can be used if the function's body is a single expression
     }
 
     fn main() {
-        // The ? operator simplifies Go-style error handling.
-        // By default, this will make the whole program 
+        // The ? operator simplifies Go-style 
+        // error handling. By default, this 
+        // will make the whole program 
         // crash if an error is encountered.
         let ok = may_fail(false)?;
         print(f"First result: {ok}");
@@ -385,7 +389,8 @@ The "fat arrow" syntax can be used if the function's body is a single expression
             local _ok_L18S562, _err_L18S562 = 
             __PPGA_INTERNAL_HANDLE_ERR(
                 function (err) 
-                    print("An error has occurred: " .. tostring(err))
+                    print("An error has occurred: " 
+                        .. tostring(err))
                     return (unpack(recovery()))
                 end,
                 may_fail(true)
