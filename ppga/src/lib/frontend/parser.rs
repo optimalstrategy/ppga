@@ -798,10 +798,22 @@ impl<'a> Parser<'a> {
     }
 
     fn unary(&mut self) -> ExprRes<'a> {
-        let expr = if self.match_any(&[TokenKind::Minus, TokenKind::Not, TokenKind::Ellipsis]) {
+        let expr = if self.match_any(&[TokenKind::Minus, TokenKind::Not]) {
             let operator = self.previous().lexeme;
             let value = self.unary()?;
             expr!(self, ExprKind::Unary(operator, Ptr::new(value)))
+        } else if self.r#match(TokenKind::Ellipsis) {
+            let operator = self.previous().lexeme;
+            let value = self.unary()?;
+            expr!(
+                self,
+                ExprKind::Unary(
+                    operator,
+                    Ptr::new(
+                        make_call!(alloc => make_var!(crate::codegen::snippets::UNPACK_NAME), value)
+                    )
+                )
+            )
         } else {
             self.call()?
         };

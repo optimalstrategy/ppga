@@ -197,7 +197,8 @@ pub fn stmt_to_lua<'a>(stmt: &Stmt<'a>, config: &PPGAConfig, depth: usize) -> St
             code.push_and_pad(expr_to_lua(&expr, config, depth), depth);
         }
         StmtKind::Assignment(vars, op, value) => {
-            let vars = vars.iter()
+            let vars = vars
+                .iter()
                 .map(|v| expr_to_lua(&v, config, depth))
                 .collect::<Vec<_>>()
                 .join(", ");
@@ -470,6 +471,12 @@ local function __PPGA_INTERNAL_HANDLE_ERR(cb, ...)
 end
 local function __PPGA_INTERNAL_DFLT_ERR_CB(err)
     error(err)
+end
+if unpack == nil then
+    unpack = table.unpack
+end
+local function __PPGA_INTERNAL_UNPACK(...)
+    return table.unpack({...})
 end
 -- END PPGA STD SYMBOLS
 

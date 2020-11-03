@@ -45,6 +45,8 @@ static constexpr auto DEFAULT_OP_NAME = "__PPGA_INTERNAL_DEFAULT"sv;
 static constexpr auto ERR_HANDLER_NAME = "__PPGA_INTERNAL_HANDLE_ERR"sv;
 /// The name of the default error handler callback
 static constexpr auto ERR_CALLBACK_NAME = "__PPGA_INTERNAL_DFLT_ERR_CB"sv;
+/// The name of the unpack helper
+static constexpr auto UNPACK_NAME = "__PPGA_INTERNAL_UNPACK"sv;
 /// The DEFAULT_OP_NAME definition
 static constexpr auto DEFAULT_OP_DEFN = R"(local function __PPGA_INTERNAL_DEFAULT(x, default)
     if x ~= nil then return (x) end
@@ -61,6 +63,13 @@ end)"sv;
 /// The ERR_CALLBACK_NAME definition
 static constexpr auto ERR_CALLBACK_DEFN = R"(local function __PPGA_INTERNAL_DFLT_ERR_CB(err)
     error(err)
+end)"sv;
+/// The UNPACK_NAME definition
+static constexpr auto UNPACK_DEFN = R"(if unpack == nil then
+    unpack = table.unpack
+end
+local function __PPGA_INTERNAL_UNPACK(...)
+    return table.unpack({...})
 end)"sv;
 }
 
@@ -2090,10 +2099,18 @@ private:
 
     ast::ExprPtr unary() {
         PPGA_PARSER_LOG(unary);
-        if (match<TokenKind::Minus, TokenKind::Not, TokenKind::Ellipsis>()) {
+        if (match<TokenKind::Minus, TokenKind::Not>()) {
             auto op = previous().lexeme();
             auto value = unary();
             return std::make_unique<ast::Unary>(op, std::move(value));
+        } else if (match<TokenKind::Ellipsis>()) {
+            auto op = previous().lexeme();
+            auto value = unary();
+            ast::ExprPtr call = std::make_unique<ast::Call>(
+                make_var(constants::UNPACK_NAME),
+                utils::make_vector(std::move(value))
+            );
+            return std::make_unique<ast::Unary>(op, std::move(call));
         }
 
         PPGA_PARSER_LOG_EXPR("leaving unary");

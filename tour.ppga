@@ -39,20 +39,24 @@ fn f(x) {
     // Create a new global variable
     global z = 5;
 
-    let arr = [1, 2, 3];
-    if not x {
-        // returns the array `arr` as an object
-        // the result is an array: [x, arr]
-        return x, arr;  // => return (x), (arr)
+    fn packed() {
+        return y, z;
     }
 
-    // unpacks the array `arr` as a sequence of its elements
-    // the result is an array: [x, 1, 2, 3]
-    return x, ...arr;  // => return x, arr
+    if not x {
+        // returns the result of packed as a
+        return packed();  // => return (packed())
+    }
+
+    // unpacks the result of packed() as two values
+    return ...packed();  // => return table.unpack({packed()})
 }
 
-let x, arr = f(35);
-print(f"f returned: {x}, {arr}");
+let y = f(false);
+print(f"f returned: {y}");
+
+let y, x = f(35);
+print(f"f returned: {y}, {z}");
 
 // if statements may be chained like this:
 if x < 20 {
@@ -149,7 +153,7 @@ fn main() {
     // By default, this will make the whole program crash if an error is encountered.
     let ok = may_fail()?;
 
-    // The line above will expand into a piece of code similar to the code below. 
+    // The line above will expand into a piece of code similar to the code below.
     // The default error callback is what makes the script crash.
     //
     // let ok = nil
