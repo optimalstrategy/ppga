@@ -38,7 +38,7 @@ There's a syntax highlighting plugin for vscode. It maybe installed from the [vs
 Literals
 </td>
 <td>
-<pre lang="lua">1;
+<pre lang="js">1;
 3.141592; 
 true; 
 false; 
@@ -60,7 +60,7 @@ None.
 </tr>
 <tr>
 <td>Array and Dict literals</td>
-<td><pre lang="lua">
+<td><pre lang="js">
 // Arrays use python-style syntax and are initialized from 0.
 let arr = [1, 2, 3];
 
@@ -86,7 +86,7 @@ empty["string"] = "hello"
 </tr>
 <tr>
 <td>F-strings</td>
-<td><pre lang="lua">
+<td><pre lang="js">
 print(f"{a} + {b} = {a + b}");
 print(f"\{escaped}");
 </pre></td>
@@ -114,7 +114,7 @@ print(1 + 2 * 3 / 4 ^ 5 % 10)
 </tr>
 <tr>
 <td>Comparison and Equality operators</td>
-<td><pre lang="lua">
+<td><pre lang="js">
 print(3 < 4, 5 <= 6, 8 > 7, 9 >= 8, 10 != 11, 7 == 7);
 </pre></td>
 <td><pre lang="lua">
@@ -140,7 +140,7 @@ print("a" .. "b")
 </tr>
 <tr>
 <td>Default Operator</td>
-<td><pre lang="lua">print(a ?? b);</pre></td>
+<td><pre lang="js">print(a ?? b);</pre></td>
 <td><pre lang="lua">
 local function __PPGA_INTERNAL_DEFAULT(x, default) 
     if x ~= nil then return (x) end
@@ -153,7 +153,7 @@ print(__PPGA_INTERNAL_DEFAULT(a, b))
 </tr>
 <tr>
 <td>Variable Declarations</td>
-<td><pre lang="lua">
+<td><pre lang="js">
 let a; 
 global b = 4;
 </pre></td>
@@ -186,7 +186,7 @@ The "fat arrow" syntax can be used if the function's body is a single expression
 </tr>
 <tr>
 <td>Lambda Expressions</td>
-<td><pre lang="lua">
+<td><pre lang="js">
 print(fn(y, f) {});
 print(fn(x) => x * x);
 </pre></td>
@@ -310,7 +310,7 @@ end
 </tr>
 <tr>
 <td>Error Propagation with `?` and `err` Blocks</td>
-<td><pre lang="lua">
+<td><pre lang="rust">
 fn may_fail(fail) {
     if fail {
         return nil, "error";
@@ -355,8 +355,7 @@ local function main()
         ok = _ok_L10S283
     end
     print("First result: " .. tostring(ok))
-
-
+    <br>
     local ok = nil
     do
         local _ok_L18S562, _err_L18S562 = __PPGA_INTERNAL_HANDLE_ERR(
