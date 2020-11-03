@@ -62,10 +62,12 @@ None.
 <td>Array and Dict literals</td>
 <td><pre lang="js">
 
-    // Arrays use python-style syntax and are initialized from 0.
+    // Arrays use python-style syntax 
+    // and are initialized from 0.
     let arr = [1, 2, 3];
 
-    // Dicts are similar to Lua but don't require the `[]`
+    // Dicts are similar to Lua but 
+    // don't require the `[]`
     let dict = {1 = 2, 3 = 4};
 
     // Indexing uses the [] syntax: 
@@ -93,7 +95,8 @@ print(f"{a} + {b} = {a + b}");
 print(f"\{escaped}");
 </pre></td>
 <td><pre lang="lua">
-print(tostring(a) .. " + " .. tostring(b) .. " = " .. tostring(a + b))
+print(tostring(a) .. " + " .. tostring(b) 
+    .. " = " .. tostring(a + b))
 print("{escaped}")
 </pre></td>
 <td>An interpolated string expression that compiles to concatenation of string literals and <code>tostring()</code> calls. A backslash can be used to escape formatter brackets: <code>\{}</code>.</td>
@@ -117,10 +120,12 @@ print(1 + 2 * 3 / 4 ^ 5 % 10)
 <tr>
 <td>Comparison and Equality operators</td>
 <td><pre lang="js">
-print(3 < 4, 5 <= 6, 8 > 7, 9 >= 8, 10 != 11, 7 == 7);
+print(3 < 4, 5 <= 6, 8 > 7, 9 >= 8, 10 != 11, 
+    7 == 7);
 </pre></td>
 <td><pre lang="lua">
-print(3 < 4, 5 <= 6, 8 > 7, 9 >= 8, 10 ~= 11, 7 == 7)
+print(3 < 4, 5 <= 6, 8 > 7, 9 >= 8, 10 ~= 11, 
+    7 == 7)
 </pre></td>
 <td>None.</td>
 </tr>
@@ -147,11 +152,6 @@ print(3 < 4, 5 <= 6, 8 > 7, 9 >= 8, 10 ~= 11, 7 == 7)
 <td><pre lang="js">print(a ?? b);</pre></td>
 <td><pre lang="lua">
 
-    local function __PPGA_INTERNAL_DEFAULT(x, default) 
-        if x ~= nil then return (x) end
-        return (default)
-    end
-    <br>
     print(__PPGA_INTERNAL_DEFAULT(a, b))
 </pre></td>
 <td>This operator is similar to `??` in C#. If `a` is not `nil`, its value will be returned, otherwise, the `b` value will be returned. This feature requires the PPGA internals included. </td>
@@ -241,7 +241,7 @@ The "fat arrow" syntax can be used if the function's body is a single expression
         }
 
         // unpacks the result of packed() as two values
-        return ...packed();  // => return table.unpack({packed()})
+        return ...packed();  // => return unpack({packed()})
     }
 </pre></td>
 <td><pre lang="lua">
@@ -345,7 +345,8 @@ The "fat arrow" syntax can be used if the function's body is a single expression
         let ok = may_fail(false)?;
         print(f"First result: {ok}");
 
-        // Sometimes it is desirable to log or try to recover from the error.
+        // Sometimes it is desirable to log or 
+        // try to recover from the error.
         // An err block may be used for this purpose:
         let ok = may_fail(true) err {
             print(f"An error has occurred: {err}");
@@ -367,7 +368,8 @@ The "fat arrow" syntax can be used if the function's body is a single expression
     local function main()
         local ok = nil
         do
-            local _ok_L10S283, _err_L10S283 = __PPGA_INTERNAL_HANDLE_ERR(
+            local _ok_L10S283, _err_L10S283 = 
+            __PPGA_INTERNAL_HANDLE_ERR(
                 __PPGA_INTERNAL_DFLT_ERR_CB, 
                 may_fail(false)
             )
@@ -380,7 +382,8 @@ The "fat arrow" syntax can be used if the function's body is a single expression
 
         local ok = nil
         do
-            local _ok_L18S562, _err_L18S562 = __PPGA_INTERNAL_HANDLE_ERR(
+            local _ok_L18S562, _err_L18S562 = 
+            __PPGA_INTERNAL_HANDLE_ERR(
                 function (err) 
                     print("An error has occurred: " .. tostring(err))
                     return (unpack(recovery()))
