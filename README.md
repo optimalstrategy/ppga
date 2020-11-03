@@ -59,6 +59,32 @@ None.
 </td>
 </tr>
 <tr>
+<td>Array and Dict literals</td>
+<td><pre lang="lua">
+// Arrays use python-style syntax and are initialized from 0.
+let arr = [1, 2, 3];
+
+// Dicts are similar to Lua but don't require the `[]`
+let dict = {1 = 2, 3 = 4};
+
+// Indexing uses the [] syntax: 
+let empty = {};
+empty["string"] = "hello";
+</pre></td>
+<td><pre lang="lua">
+local arr = {[0] = 1, [1] = 2, [2] = 3}
+
+local dict = {
+    [1] = 2,
+    [3] = 4
+}
+
+local empty = {}
+empty["string"] = "hello"
+</pre></td>
+<td>None.</td>
+</tr>
+<tr>
 <td>F-strings</td>
 <td><pre lang="lua">
 print(f"{a} + {b} = {a + b}");
@@ -220,12 +246,126 @@ end
 <td>Strips the parentheses and unpacks the given expression with `table.unpack`.</td>
 </tr>
 <tr>
-<td>WIP</td>
+<td>For Loop (ranges)</td>
 <td><pre lang="lua">
-...
+// From 0 to 3
+for i in range(3) {
+    print(i);
+}
+
+// From 2 to 4
+for i in range(2, 4) { 
+    print(i);
+}
+
+// From 0 to 10 with step = 2
+for i in range(0, 10, 2) { 
+    print(i);
+}
 </pre></td>
 <td><pre lang="lua">
-...
+for i = 0, 3, 1 do
+    print(i)
+end
+
+for i = 2, 4, 1 do
+    print(i)
+end
+
+for i = 0, 10, 2 do
+    print(i)
+end
+</pre></td>
+<td>For-range loops transpile to Lua range loops</td>
+</tr>
+<tr>
+<td>For Loop (containers)</td>
+<td><pre lang="lua">
+let container = [1, 2, 3];
+container["string"] = "hello";
+
+// Table iteration, uses pairs
+for key, value in container {
+    print(key, value);
+}
+
+// Array iteration, uses ipairs
+fori idx, value in container {
+    print(idx, value);
+}
+</pre></td>
+<td><pre lang="lua">
+local container = {[0] = 1, [1] = 2, [2] = 3}
+container["string"] = "hello"
+
+for key, value in pairs(container) do
+    print(key, value)
+end
+
+for idx, value in ipairs(container) do
+    print(idx, value)
+end
+</pre></td>
+<td>For-in loops transpile to `pairs` or `ipairs` depending on the keyword used.</td>
+</tr>
+<tr>
+<td>Error Propagation with `?` and `err` Blocks</td>
+<td><pre lang="lua">
+fn may_fail(fail) {
+    if fail {
+        return nil, "error";
+    }
+    return "success", nil;
+}
+
+fn main() {
+    // The ? operator simplifies Go-style error handling.
+    // By default, this will make the whole program crash if an error is encountered.
+    let ok = may_fail(false)?;
+    print(f"First result: {ok}");
+
+    // Sometimes it is desirable to log or try to recover from the error.
+    // An err block may be used for this purpose:
+    let ok = may_fail(true) err {
+        print(f"An error has occurred: {err}");
+        return ...recovery();
+    }?;
+    return ok;
+}
+</pre></td>
+<td><pre lang="lua">
+local function may_fail(fail)
+    if fail then
+        return (nil), ("error")
+    end
+    return ("success"), (nil)
+end
+
+local function main()
+    local ok = nil
+    do
+        local _ok_L10S283, _err_L10S283 = __PPGA_INTERNAL_HANDLE_ERR(__PPGA_INTERNAL_DFLT_ERR_CB, may_fail(false))
+        if _err_L10S283 ~= nil then
+            return (nil), (_err_L10S283)
+        end
+        ok = _ok_L10S283
+    end
+    print("First result: " .. tostring(ok))
+
+
+    local ok = nil
+    do
+        local _ok_L18S562, _err_L18S562 = __PPGA_INTERNAL_HANDLE_ERR(function (err)
+                print("An error has occurred: " .. tostring(err))
+                return (unpack(recovery()))
+            end, may_fail(true))
+        if _err_L18S562 ~= nil then
+            return (nil), (_err_L18S562)
+        end
+        ok = _ok_L18S562
+    end
+    return (ok)
+end
 </pre></td>
 <td>...</td>
 </tr>

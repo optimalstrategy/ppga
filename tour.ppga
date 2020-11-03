@@ -167,7 +167,7 @@ fn main() {
     // }
     print(f"First result: {ok}");
 
-    // Sometimes it is desirable to log or try to recover from, the error.
+    // Sometimes it is desirable to log or try to recover from the error.
     // An err block may be used for this purpose:
     let ok = another_fail() err {
         print(f"An error has occurred: {err}");
