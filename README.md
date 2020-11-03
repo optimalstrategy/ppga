@@ -403,5 +403,12 @@ The "fat arrow" syntax can be used if the function's body is a single expression
 </pre>
 </td>
 </tr>
+<tr>
+<td></td>
+<td><pre>
+    
+a hack to widen the column
+</pre></td>
+</tr>
 </tbody>
 </table>
