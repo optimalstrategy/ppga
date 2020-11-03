@@ -61,26 +61,28 @@ None.
 <tr>
 <td>Array and Dict literals</td>
 <td><pre lang="js">
-// Arrays use python-style syntax and are initialized from 0.
-let arr = [1, 2, 3];
 
-// Dicts are similar to Lua but don't require the `[]`
-let dict = {1 = 2, 3 = 4};
+    // Arrays use python-style syntax and are initialized from 0.
+    let arr = [1, 2, 3];
 
-// Indexing uses the [] syntax: 
-let empty = {};
-empty["string"] = "hello";
+    // Dicts are similar to Lua but don't require the `[]`
+    let dict = {1 = 2, 3 = 4};
+
+    // Indexing uses the [] syntax: 
+    let empty = {};
+    empty["string"] = "hello";
 </pre></td>
 <td><pre lang="lua">
-local arr = {[0] = 1, [1] = 2, [2] = 3}
 
-local dict = {
-    [1] = 2,
-    [3] = 4
-}
+    local arr = {[0] = 1, [1] = 2, [2] = 3}
 
-local empty = {}
-empty["string"] = "hello"
+    local dict = {
+        [1] = 2,
+        [3] = 4
+    }
+
+    local empty = {}
+    empty["string"] = "hello"
 </pre></td>
 <td>None.</td>
 </tr>
@@ -131,10 +133,12 @@ print(3 < 4, 5 <= 6, 8 > 7, 9 >= 8, 10 ~= 11, 7 == 7)
 <tr>
 <td>Concatenation Operator</td>
 <td><pre lang="lua">
-print("a" .. "b");
+
+    print("a" .. "b");
 </pre></td>
 <td><pre lang="lua">
-print("a" .. "b")
+
+    print("a" .. "b")
 </pre></td>
 <td>This operator is the same as in lua. Reusing `+` for concatenation is not possible without rolling out a type system.</td>
 </tr>
@@ -142,44 +146,49 @@ print("a" .. "b")
 <td>Default Operator</td>
 <td><pre lang="js">print(a ?? b);</pre></td>
 <td><pre lang="lua">
-local function __PPGA_INTERNAL_DEFAULT(x, default) 
-    if x ~= nil then return (x) end
-    return (default)
-end
-<br>
-print(__PPGA_INTERNAL_DEFAULT(a, b))
+
+    local function __PPGA_INTERNAL_DEFAULT(x, default) 
+        if x ~= nil then return (x) end
+        return (default)
+    end
+    <br>
+    print(__PPGA_INTERNAL_DEFAULT(a, b))
 </pre></td>
 <td>This operator is similar to `??` in C#. If `a` is not `nil`, its value will be returned, otherwise, the `b` value will be returned. This feature requires the PPGA internals included. </td>
 </tr>
 <tr>
 <td>Variable Declarations</td>
 <td><pre lang="js">
-let a; 
-global b = 4;
+
+    let a; 
+    global b = 4;
 </pre></td>
 <td><pre lang="lua">
-local a
-b = 4
+
+    local a
+    b = 4
 </pre></td>
 <td>Let bindings correspond to `local` lua variables, while `global` ones transpile to variables without a binding keyword. A `global` variable must be initialized at declaration.</td>
 </tr>
 <tr>
 <td>Function Declarations </td>
 <td><pre lang="lua">
-global fn f() {}
-fn g() {}
-fn h(x) => x * x
+
+    global fn f() {}
+    fn g() {}
+    fn h(x) => x * x
 </pre></td>
 <td><pre lang="lua">
-function f()
-end
-<br>
-local function g()
-end
-<br>
-local function h(x)
-    return (x * x)
-end
+
+    function f()
+    end
+    
+    local function g()
+    end
+    
+    local function h(x)
+        return (x * x)
+    end
 </pre></td>
 <td>All functions are `local` by default. The `global` keyword may be used to make them global. 
 The "fat arrow" syntax can be used if the function's body is a single expression.</td>
@@ -187,155 +196,167 @@ The "fat arrow" syntax can be used if the function's body is a single expression
 <tr>
 <td>Lambda Expressions</td>
 <td><pre lang="js">
-print(fn(y, f) {});
-print(fn(x) => x * x);
+
+    print(fn(y, f) {});
+    print(fn(x) => x * x);
 </pre></td>
 <td><pre lang="lua">
-print(function (y, f)
-    end)
-print(function (x)
-        return (x * x)
-    end)
+
+    print(function (y, f)
+        end)
+    print(function (x)
+            return (x * x)
+        end)
 </pre></td>
 <td>Lambdas use the same syntax as named functions, except that they don't need an identifier.</td>
 </tr>
 <tr>
 <td>Rest Arguments / Variadics</td>
 <td><pre lang="lua">
-fn f(a, @) {
-    print(a, @);
-}
+
+    fn f(a, @) {
+        print(a, @);
+    }
 </pre></td>
 <td><pre lang="lua">
-local function f(a, ...)
-    print(a, ...)
-end
+
+    local function f(a, ...)
+        print(a, ...)
+    end
 </pre></td>
 <td>Rest arguments use the `@` symbol and transpile to `...`.</td>
 </tr>
 <tr>
 <td>Ellipsis / Unpacking</td>
 <td><pre lang="lua">
-fn f(x) {
-    fn packed() {
-        return x, 5;
-    }
 
-    if not x {
-        // returns the result of packed as a
-        return packed();  // => return (packed())
-    }
+    fn f(x) {
+        fn packed() {
+            return x, 5;
+        }
 
-    // unpacks the result of packed() as two values
-    return ...packed();  // => return table.unpack({packed()})
-}
+        if not x {
+            // returns the result of packed as a
+            return packed();  // => return (packed())
+        }
+
+        // unpacks the result of packed() as two values
+        return ...packed();  // => return table.unpack({packed()})
+    }
 </pre></td>
 <td><pre lang="lua">
-local function f(x)
-    local function packed()
-        return (y), (5)
-    end
 
-    if not(x) then
-        return (packed())
-    end
+    local function f(x)
+        local function packed()
+            return (y), (5)
+        end
 
-    return __PPGA_INTERNAL_UNPACK(packed())
-end
+        if not(x) then
+            return (packed())
+        end
+
+        return __PPGA_INTERNAL_UNPACK(packed())
+    end
 </pre></td>
 <td>Strips the parentheses and unpacks the given expression with `table.unpack`.</td>
 </tr>
 <tr>
 <td>For Loop (ranges)</td>
 <td><pre lang="lua">
-// From 0 to 3
-for i in range(3) {
-    print(i);
-}
 
-// From 2 to 4
-for i in range(2, 4) { 
-    print(i);
-}
+    // From 0 to 3
+    for i in range(3) {
+        print(i);
+    }
 
-// From 0 to 10 with step = 2
-for i in range(0, 10, 2) { 
-    print(i);
-}
+    // From 2 to 4
+    for i in range(2, 4) { 
+        print(i);
+    }
+
+    // From 0 to 10 with step = 2
+    for i in range(0, 10, 2) { 
+        print(i);
+    }
 </pre></td>
 <td><pre lang="lua">
-for i = 0, 3, 1 do
-    print(i)
-end
 
-for i = 2, 4, 1 do
-    print(i)
-end
+    for i = 0, 3, 1 do
+        print(i)
+    end
 
-for i = 0, 10, 2 do
-    print(i)
-end
+    for i = 2, 4, 1 do
+        print(i)
+    end
+
+    for i = 0, 10, 2 do
+        print(i)
+    end
 </pre></td>
 <td>For-range loops transpile to Lua range loops</td>
 </tr>
 <tr>
 <td>For Loop (containers)</td>
 <td><pre lang="lua">
-let container = [1, 2, 3];
-container["string"] = "hello";
 
-// Table iteration, uses pairs
-for key, value in container {
-    print(key, value);
-}
+    let container = [1, 2, 3];
+    container["string"] = "hello";
 
-// Array iteration, uses ipairs
-fori idx, value in container {
-    print(idx, value);
-}
+    // Table iteration, uses pairs
+    for key, value in container {
+        print(key, value);
+    }
+
+    // Array iteration, uses ipairs
+    fori idx, value in container {
+        print(idx, value);
+    }
 </pre></td>
 <td><pre lang="lua">
-local container = {[0] = 1, [1] = 2, [2] = 3}
-container["string"] = "hello"
 
-for key, value in pairs(container) do
-    print(key, value)
-end
+    local container = {[0] = 1, [1] = 2, [2] = 3}
+    container["string"] = "hello"
 
-for idx, value in ipairs(container) do
-    print(idx, value)
-end
+    for key, value in pairs(container) do
+        print(key, value)
+    end
+
+    for idx, value in ipairs(container) do
+        print(idx, value)
+    end
 </pre></td>
 <td>For-in loops transpile to `pairs` or `ipairs` depending on the keyword used.</td>
 </tr>
 <tr>
 <td>Error Propagation with `?` and `err` Blocks</td>
 <td><pre lang="rust">
-fn may_fail(fail) {
-    if fail {
-        return nil, "error";
+
+    fn may_fail(fail) {
+        if fail {
+            return nil, "error";
+        }
+        return "success", nil;
     }
-    return "success", nil;
-}
 
-fn main() {
-    // The ? operator simplifies Go-style error handling.
-    // By default, this will make the whole program 
-    // crash if an error is encountered.
-    let ok = may_fail(false)?;
-    print(f"First result: {ok}");
+    fn main() {
+        // The ? operator simplifies Go-style error handling.
+        // By default, this will make the whole program 
+        // crash if an error is encountered.
+        let ok = may_fail(false)?;
+        print(f"First result: {ok}");
 
-    // Sometimes it is desirable to log or try to recover from the error.
-    // An err block may be used for this purpose:
-    let ok = may_fail(true) err {
-        print(f"An error has occurred: {err}");
-        return ...recovery();
-    }?;
-    return ok;
-}
+        // Sometimes it is desirable to log or try to recover from the error.
+        // An err block may be used for this purpose:
+        let ok = may_fail(true) err {
+            print(f"An error has occurred: {err}");
+            return ...recovery();
+        }?;
+        return ok;
+    }
 </pre></td>
 <td>
     <pre lang="lua">
+
     local function may_fail(fail)
         if fail then
             return (nil), ("error")
@@ -371,6 +392,7 @@ fn main() {
             end
             ok = _ok_L18S562
         end
+        
         return (ok)
     end
 </pre>
