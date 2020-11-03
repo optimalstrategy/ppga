@@ -336,44 +336,44 @@ fn main() {
 </pre></td>
 <td>
     <pre lang="lua">
-        local function may_fail(fail)
-            if fail then
-                return (nil), ("error")
-            end
-            return ("success"), (nil)
+    local function may_fail(fail)
+        if fail then
+            return (nil), ("error")
         end
+        return ("success"), (nil)
+    end
 
-        local function main()
-            local ok = nil
-            do
-                local _ok_L10S283, _err_L10S283 = __PPGA_INTERNAL_HANDLE_ERR(
-                    __PPGA_INTERNAL_DFLT_ERR_CB, 
-                    may_fail(false)
-                )
-                if _err_L10S283 ~= nil then
-                    return (nil), (_err_L10S283)
-                end
-                ok = _ok_L10S283
+    local function main()
+        local ok = nil
+        do
+            local _ok_L10S283, _err_L10S283 = __PPGA_INTERNAL_HANDLE_ERR(
+                __PPGA_INTERNAL_DFLT_ERR_CB, 
+                may_fail(false)
+            )
+            if _err_L10S283 ~= nil then
+                return (nil), (_err_L10S283)
             end
-            print("First result: " .. tostring(ok))
-
-            local ok = nil
-            do
-                local _ok_L18S562, _err_L18S562 = __PPGA_INTERNAL_HANDLE_ERR(
-                    function (err) 
-                        print("An error has occurred: " .. tostring(err))
-                        return (unpack(recovery()))
-                    end,
-                    may_fail(true)
-                )
-                if _err_L18S562 ~= nil then
-                    return (nil), (_err_L18S562)
-                end
-                ok = _ok_L18S562
-            end
-            return (ok)
+            ok = _ok_L10S283
         end
-    </pre>
+        print("First result: " .. tostring(ok))
+
+        local ok = nil
+        do
+            local _ok_L18S562, _err_L18S562 = __PPGA_INTERNAL_HANDLE_ERR(
+                function (err) 
+                    print("An error has occurred: " .. tostring(err))
+                    return (unpack(recovery()))
+                end,
+                may_fail(true)
+            )
+            if _err_L18S562 ~= nil then
+                return (nil), (_err_L18S562)
+            end
+            ok = _ok_L18S562
+        end
+        return (ok)
+    end
+</pre>
 </td>
 <td>...</td>
 </tr>
