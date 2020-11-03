@@ -27,16 +27,15 @@ There's a syntax highlighting plugin for vscode. It maybe installed from the [vs
 <thead>
 <tr>
 <th>Feature</th>
+<th>Description</th>
 <th>Example</th>
 <th>Generated Lua</th>
-<th>Description</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>
-Literals
-</td>
+<td>Literals</td>
+<td>None.</td>    
 <td>
 <pre lang="js">1;
 3.141592; 
@@ -54,12 +53,10 @@ nil
 "a string"
 </pre>
 </td>
-<td>
-None.
-</td>
 </tr>
 <tr>
 <td>Array and Dict literals</td>
+<td>None.</td>
 <td><pre lang="js">
 
     // Arrays use python-style syntax 
@@ -86,10 +83,10 @@ None.
     local empty = {}
     empty["string"] = "hello"
 </pre></td>
-<td>None.</td>
 </tr>
 <tr>
 <td>F-strings</td>
+<td>An interpolated string expression that compiles to concatenation of string literals and <code>tostring()</code> calls. A backslash can be used to escape formatter brackets: <code>\{}</code>.</td>
 <td><pre lang="js">
 print(f"{a} + {b} = {a + b}");
 print(f"\{escaped}");
@@ -99,26 +96,26 @@ print(tostring(a) .. " + " .. tostring(b)
     .. " = " .. tostring(a + b))
 print("{escaped}")
 </pre></td>
-<td>An interpolated string expression that compiles to concatenation of string literals and <code>tostring()</code> calls. A backslash can be used to escape formatter brackets: <code>\{}</code>.</td>
 </tr>
 <tr>
 <td>Arithmetic Expressions</td>
+<td>None.</td>
 <td><pre lang="lua">
 print(1 + 2 * 3 / 4 ** 5 % 10);
 </pre></td>
 <td><pre lang="lua">
 print(1 + 2 * 3 / 4 ^ 5 % 10)
 </pre></td>
-<td>None.</td>
 </tr>
 <tr>
 <td>Integer Division</td>
+<td>Integer division operator.</td>
 <td><pre lang="lua">print(1 \ 2);</pre></td>
 <td><pre lang="lua">print(1 // 2)</pre></td>
-<td>Integer division operator.</td>
 </tr>
 <tr>
 <td>Comparison and Equality operators</td>
+<td>None.</td>
 <td><pre lang="js">
 print(3 < 4, 5 <= 6, 8 > 7, 9 >= 8, 10 != 11, 
     7 == 7);
@@ -127,16 +124,16 @@ print(3 < 4, 5 <= 6, 8 > 7, 9 >= 8, 10 != 11,
 print(3 < 4, 5 <= 6, 8 > 7, 9 >= 8, 10 ~= 11, 
     7 == 7)
 </pre></td>
-<td>None.</td>
 </tr>
 <tr>
 <td>Logic operators </td>
+<td>None.</td>
 <td><pre lang="lua">print(true and false or true);</pre></td>
 <td><pre lang="lua">print(true and false or true)</pre></td>
-<td>None.</td>
 </tr>
 <tr>
 <td>Concatenation Operator</td>
+<td>This operator is the same as in lua. Reusing `+` for concatenation is not possible without rolling out a type system.</td>
 <td><pre lang="lua">
 
     print("a" .. "b");
@@ -145,19 +142,19 @@ print(3 < 4, 5 <= 6, 8 > 7, 9 >= 8, 10 ~= 11,
 
     print("a" .. "b")
 </pre></td>
-<td>This operator is the same as in lua. Reusing `+` for concatenation is not possible without rolling out a type system.</td>
 </tr>
 <tr>
 <td>Default Operator</td>
+<td>This operator is similar to `??` in C#. If `a` is not `nil`, its value will be returned, otherwise, the `b` value will be returned. This feature requires the PPGA internals included. </td>
 <td><pre lang="js">print(a ?? b);</pre></td>
 <td><pre lang="lua">
 
     print(__PPGA_INTERNAL_DEFAULT(a, b))
 </pre></td>
-<td>This operator is similar to `??` in C#. If `a` is not `nil`, its value will be returned, otherwise, the `b` value will be returned. This feature requires the PPGA internals included. </td>
 </tr>
 <tr>
 <td>Variable Declarations</td>
+<td>Let bindings correspond to `local` lua variables, while `global` ones transpile to variables without a binding keyword. A `global` variable must be initialized at declaration.</td>
 <td><pre lang="js">
 
     let a; 
@@ -168,10 +165,11 @@ print(3 < 4, 5 <= 6, 8 > 7, 9 >= 8, 10 ~= 11,
     local a
     b = 4
 </pre></td>
-<td>Let bindings correspond to `local` lua variables, while `global` ones transpile to variables without a binding keyword. A `global` variable must be initialized at declaration.</td>
 </tr>
 <tr>
 <td>Function Declarations </td>
+<td>All functions are `local` by default. The `global` keyword may be used to make them global. 
+The "fat arrow" syntax can be used if the function's body is a single expression.</td>
 <td><pre lang="lua">
 
     global fn f() {}
@@ -190,11 +188,10 @@ print(3 < 4, 5 <= 6, 8 > 7, 9 >= 8, 10 ~= 11,
         return (x * x)
     end
 </pre></td>
-<td>All functions are `local` by default. The `global` keyword may be used to make them global. 
-The "fat arrow" syntax can be used if the function's body is a single expression.</td>
 </tr>
 <tr>
 <td>Lambda Expressions</td>
+<td>Lambdas use the same syntax as named functions, except that they don't need an identifier.</td>
 <td><pre lang="js">
 
     print(fn(y, f) {});
@@ -208,10 +205,10 @@ The "fat arrow" syntax can be used if the function's body is a single expression
             return (x * x)
         end)
 </pre></td>
-<td>Lambdas use the same syntax as named functions, except that they don't need an identifier.</td>
 </tr>
 <tr>
 <td>Rest Arguments / Variadics</td>
+<td>Rest arguments use the `@` symbol and transpile to `...`.</td>
 <td><pre lang="lua">
 
     fn f(a, @) {
@@ -224,10 +221,10 @@ The "fat arrow" syntax can be used if the function's body is a single expression
         print(a, ...)
     end
 </pre></td>
-<td>Rest arguments use the `@` symbol and transpile to `...`.</td>
 </tr>
 <tr>
 <td>Ellipsis / Unpacking</td>
+<td>Strips the parentheses and unpacks the given expression with `table.unpack`.</td>
 <td><pre lang="rust">
 
     fn f(x) {
@@ -261,10 +258,10 @@ The "fat arrow" syntax can be used if the function's body is a single expression
         return __PPGA_INTERNAL_UNPACK(packed())
     end
 </pre></td>
-<td>Strips the parentheses and unpacks the given expression with `table.unpack`.</td>
 </tr>
 <tr>
 <td>For Loop (ranges)</td>
+<td>For-range loops transpile to Lua range loops</td>
 <td><pre lang="rust">
 
     // From 0 to 3
@@ -296,10 +293,10 @@ The "fat arrow" syntax can be used if the function's body is a single expression
         print(i)
     end
 </pre></td>
-<td>For-range loops transpile to Lua range loops</td>
 </tr>
 <tr>
 <td>For Loop (containers)</td>
+<td>For-in loops transpile to `pairs` or `ipairs` depending on the keyword used.</td>
 <td><pre lang="rust">
 
     let container = [1, 2, 3];
@@ -328,10 +325,10 @@ The "fat arrow" syntax can be used if the function's body is a single expression
         print(idx, value)
     end
 </pre></td>
-<td>For-in loops transpile to `pairs` or `ipairs` depending on the keyword used.</td>
 </tr>
 <tr>
 <td>Error Propagation with `?` and `err` Blocks</td>
+<td>None.</td>
 <td><pre lang="rust">
 
     fn may_fail(fail) {
@@ -405,7 +402,6 @@ The "fat arrow" syntax can be used if the function's body is a single expression
     end
 </pre>
 </td>
-<td>...</td>
 </tr>
 </tbody>
 </table>
