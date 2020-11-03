@@ -320,7 +320,8 @@ fn may_fail(fail) {
 
 fn main() {
     // The ? operator simplifies Go-style error handling.
-    // By default, this will make the whole program crash if an error is encountered.
+    // By default, this will make the whole program 
+    // crash if an error is encountered.
     let ok = may_fail(false)?;
     print(f"First result: {ok}");
 
@@ -344,7 +345,10 @@ end
 local function main()
     local ok = nil
     do
-        local _ok_L10S283, _err_L10S283 = __PPGA_INTERNAL_HANDLE_ERR(__PPGA_INTERNAL_DFLT_ERR_CB, may_fail(false))
+        local _ok_L10S283, _err_L10S283 = __PPGA_INTERNAL_HANDLE_ERR(
+            __PPGA_INTERNAL_DFLT_ERR_CB, 
+            may_fail(false)
+        )
         if _err_L10S283 ~= nil then
             return (nil), (_err_L10S283)
         end
@@ -355,10 +359,13 @@ local function main()
 
     local ok = nil
     do
-        local _ok_L18S562, _err_L18S562 = __PPGA_INTERNAL_HANDLE_ERR(function (err)
+        local _ok_L18S562, _err_L18S562 = __PPGA_INTERNAL_HANDLE_ERR(
+            function (err) 
                 print("An error has occurred: " .. tostring(err))
                 return (unpack(recovery()))
-            end, may_fail(true))
+            end,
+            may_fail(true)
+        )
         if _err_L18S562 ~= nil then
             return (nil), (_err_L18S562)
         end
@@ -371,9 +378,3 @@ end
 </tr>
 </tbody>
 </table>
-
-
-
-
-
-
