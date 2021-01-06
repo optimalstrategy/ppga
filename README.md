@@ -18,7 +18,7 @@ OR
 There's two implementations of the transpiler, in [Rust](ppga) and [C++](./ppga-cpp/README.md).
 
 ## Syntax Highlighting
-There's a syntax highlighting plugin for vscode. It maybe installed from the [vscode-ppga](vscode-ppga) directory.
+There's a syntax highlighting plugin for vscode. It can be installed from the [vscode-ppga](vscode-ppga) directory.
 
 
 ## Language Reference
