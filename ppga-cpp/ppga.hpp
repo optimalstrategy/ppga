@@ -1075,6 +1075,7 @@ struct Node {
     /// Returns the name of the derived class using the `typeid` operator.
     [[nodiscard]]
     virtual std::string name() const { return typeid(*this).name(); };
+    virtual ~Node() {}
 };
 /// A statement node.
 struct Stmt : public Node {};
@@ -1115,6 +1116,7 @@ struct Visitor {
     virtual void visit(VarDecl& decl) = 0;
     virtual void visit(Assignment& ass) = 0;
     virtual void visit(Break& break_) = 0;
+    virtual ~Visitor() {}
 };
 
 /// A helper class for reducing boilerplate.
@@ -2508,7 +2510,7 @@ class ASTPrinter : public Visitor {
 
 public:
     explicit ASTPrinter(size_t indent_size = 2)
-        : Visitor(), indent_size(std::max((size_t) 1, indent_size)) {}
+        : Visitor(), indent_size(std::max(static_cast<size_t>(1), indent_size)) {}
 
     std::string finish() const {
         return ss.str();
@@ -2771,7 +2773,7 @@ class LuaTranspiler : public Visitor {
 public:
     explicit LuaTranspiler(PPGAConfig config)
             : Visitor(),
-              indent_size(std::max((size_t) 1, config.indent_size)),
+              indent_size(std::max(static_cast<size_t>(1), config.indent_size)),
               include_std(config.include_ppga_std) {}
 
     std::string finish() const {

@@ -4,7 +4,12 @@
 cmake_minimum_required (VERSION 3.17)
 
 function(set_compiler_options project_name)
-    target_compile_options(${project_name} PRIVATE -Wall -Wextra -pedantic -Werror)
+    target_compile_options(
+            ${project_name} PRIVATE
+            -Wall -Wextra -pedantic -Werror -Wnon-virtual-dtor
+            -Wold-style-cast -Wcast-align -Wunused -Woverloaded-virtual -Wconversion
+            -Wsign-conversion -Wmisleading-indentation -Wduplicated-cond
+    )
 endfunction()
 
 # Set C++ 17 compiler flags
