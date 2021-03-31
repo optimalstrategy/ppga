@@ -36,9 +36,9 @@ namespace constants {
 using namespace std::string_view_literals;
 
 /// The number of indentation spaces in the resulting lua code.
-static size_t DEFAULT_PPGA_INDENT_SIZE = 4;
+static constexpr size_t PPGA_DEFAULT_INDENT_SIZE = 4;
 /// The number of chars an error line may be. Longer lines will be truncated.
-static size_t PPGA_ERROR_LINE_MAX_LENGTH = 256;
+static constexpr size_t PPGA_MAX_ERROR_LINE_LENGTH = 256;
 /// The name of the default operator function
 static constexpr auto DEFAULT_OP_NAME = "__PPGA_INTERNAL_DEFAULT"sv;
 /// The name of the error handler function
@@ -76,9 +76,9 @@ end)"sv;
 /// This struct controls the lua codegen settings.
 struct PPGAConfig {
     /// The desired indentation size in spaces. Defaults to `constants::DEFAULT_PPGA_INDENT_SIZE`.
-    size_t indent_size = constants::DEFAULT_PPGA_INDENT_SIZE;
+    size_t indent_size = constants::PPGA_DEFAULT_INDENT_SIZE;
     /// Whether to include the PPGA standard library functions.
-    /// Some PPGA features like the `??` operator or `err` blocks are not going to work without these functions.
+    /// Some PPGA features like the `??` operator and `err` blocks are not going to work without these functions.
     bool include_ppga_std = true;
 };
 
@@ -94,12 +94,12 @@ struct Span {
     /// A pointer to the source code string.
     std::string_view source;
 
-    explicit Span(size_t start, size_t end, size_t line, std::string_view source)
+    explicit constexpr Span(size_t start, size_t end, size_t line, std::string_view source)
             : start(start), end(end), line(line), source(source) {}
 
     /// Returns a pointer to the lexeme defined by the `start` and `end` values.
     [[nodiscard]]
-    constexpr std::string_view slice() const {
+    inline constexpr std::string_view slice() const {
         return source.substr(start, end - start);
     }
 
@@ -113,7 +113,7 @@ struct Span {
 }
 
 namespace error {
-/// An error originating at any pointer in the transpiler pipeline.
+/// An error originating at any point in the transpiler pipeline.
 struct PPGAError {
     /// The span of the token that caused the error.
     lexer::Span span;
@@ -128,9 +128,10 @@ struct PPGAError {
     }
 };
 
-/// An error context that stores all errors originating within transpiler pipeline.
+/// An error context that stores all errors originating within the transpiler pipeline.
 /// This struct offers methods for recording and reporting errors.
 struct ErrCtx {
+public:
     /// The collected errors.
     std::vector<PPGAError> errors;
 
@@ -183,26 +184,27 @@ private:
     /// but only if it is located within `constants::PPGA_ERROR_LINE_MAX_LENGTH` characters.
     /// The boolean pair member indicates whether the search stopped at a max length boundary
     /// (in other words, whether the line was truncated).
-    inline static std::pair<size_t, bool> find_error_line_start(const PPGAError& e) {
+    inline static constexpr std::pair<size_t, bool> find_error_line_start(const PPGAError& e) {
         size_t line_start = e.span.start;
         while (line_start > 0 && e.span.source.at(--line_start) != '\n'
-               && (e.span.start - line_start) < constants::PPGA_ERROR_LINE_MAX_LENGTH);
+               && (e.span.start - line_start) < constants::PPGA_MAX_ERROR_LINE_LENGTH);
         return {
             line_start + (line_start != 0),
-            e.span.start - line_start >= constants::PPGA_ERROR_LINE_MAX_LENGTH
+            e.span.start - line_start >= constants::PPGA_MAX_ERROR_LINE_LENGTH
         };
     }
+
     /// Finds the offset of the first newline to the right of the span end, but only if it is located within
     /// `constants::PPGA_ERROR_LINE_MAX_LENGTH` characters.
-    inline static size_t find_error_line_end(const PPGAError& e) {
+    inline static constexpr size_t find_error_line_end(const PPGAError& e) {
         size_t line_end = e.span.end - 1;
         while (line_end < e.span.source.size() && e.span.source.at(++line_end) != '\n'
-               && (line_end - e.span.end) < constants::PPGA_ERROR_LINE_MAX_LENGTH);
+               && (line_end - e.span.end) < constants::PPGA_MAX_ERROR_LINE_LENGTH);
         return line_end;
     }
 
     /// Computers the 1-based column number number of the given span.
-    inline static size_t compute_column(const PPGAError& e, size_t line_start) noexcept {
+    inline static constexpr size_t compute_column(const PPGAError& e, size_t line_start) noexcept {
         return e.span.start - line_start + 1; // +1 because columns are 1-based
     }
 
@@ -555,25 +557,25 @@ public:
 
     /// Returns the lua payload or throws an exception if there is none.
     [[nodiscard]]
-    inline std::string_view get_lua_payload() const {
+    inline constexpr std::string_view get_lua_payload() const {
         return std::get<std::string_view>(payload.value());
     }
 
     /// Returns the f-string payload or throws an exception if there is none.
     [[nodiscard]]
-    inline std::vector<FStringFragment>& get_fstring_payload() {
+    inline constexpr std::vector<FStringFragment>& get_fstring_payload() {
         return std::get<std::vector<FStringFragment>>(payload.value());
     }
 
     /// Returns the kind of the token.
     [[nodiscard]]
-    constexpr inline TokenKind kind() const noexcept {
+    inline constexpr TokenKind kind() const noexcept {
         return kind_;
     }
 
     /// Returns a reference to the span of the token.
     [[nodiscard]]
-    constexpr inline const Span& span() const noexcept {
+    inline constexpr const Span& span() const noexcept {
         return span_;
     }
 
@@ -585,7 +587,7 @@ public:
     }
 };
 
-/// PPGA's lexer used for tokenizing source code.
+/// PPGA's lexer used for tokenizing the source code.
 class Lexer {
     /// A pointer to the source code. This pointer must be valid for the whole duration of the pipeline.
     std::string_view source;
@@ -601,6 +603,7 @@ public:
 
     /// Attempts to tokenize the source code, writing any errors to the given error context.
     /// Returns an optional of the token vector or `std::nullopt`.
+    [[nodiscard]]
     std::optional<std::vector<Token>> lex(error::ErrCtx& ex) noexcept {
         while (!is_at_end()) {
             tokens.push_back(next_token(ex));
@@ -956,7 +959,7 @@ public:
 
     /// Checks if the next character matches the given character.
     [[nodiscard]]
-    inline bool check(char c) const noexcept {
+    inline constexpr bool check(char c) const noexcept {
         return peek() == c;
     }
 
@@ -967,7 +970,7 @@ public:
     }
 
     /// Consumes the next character if it matches the given character.
-    inline bool match(char c) noexcept {
+    inline constexpr bool match(char c) noexcept {
         if (check(c)) {
             advance();
             return true;
@@ -986,7 +989,7 @@ public:
 
     /// Attempts to advance to the next character.
     /// If no more characters are left, returns `std::nullopt`.
-    inline std::optional<char> advance() noexcept {
+    inline constexpr std::optional<char> advance() noexcept {
         if (is_at_end()) {
             return std::nullopt;
         }
@@ -996,7 +999,7 @@ public:
     /// Attempts to return the current character.
     /// Returns `std::nullopt` if there is none.
     [[nodiscard]]
-    inline std::optional<char> peek() const noexcept {
+    inline constexpr std::optional<char> peek() const noexcept {
         if (is_at_end()) {
             return std::nullopt;
         }
@@ -1006,7 +1009,7 @@ public:
     /// Attempts to return the next character.
     /// Returns `std::nullopt` if there is none.
     [[nodiscard]]
-    inline std::optional<char> peek_next() const noexcept {
+    inline constexpr std::optional<char> peek_next() const noexcept {
         if (current + 1 == source.length()) {
             return std::nullopt;
         }
@@ -1015,7 +1018,7 @@ public:
 
     /// Returns the previous character.
     [[nodiscard]]
-    inline std::optional<char> previous() const noexcept {
+    inline constexpr std::optional<char> previous() const noexcept {
         if (current == 0) {
             return std::nullopt;
         }
@@ -1024,11 +1027,9 @@ public:
 
     /// Returns true if no characters are left.
     [[nodiscard]]
-    inline bool is_at_end() const noexcept {
+    inline constexpr bool is_at_end() const noexcept {
         return current >= source.length();
     }
-
-
 };
 
 

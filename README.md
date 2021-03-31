@@ -1,5 +1,6 @@
 # PPGA Script
-PPGA Script is a scripting language that transpiles to Lua. It provides a more familiar C-style syntax and syntactic sugar, designed to reduce the amount of boilerplate when writing scripting commands in lua.
+PPGA Script is a scripting language that transpiles to Lua, original designed to be used in [https://github.com/jprochazk/anikibot](). 
+It provides a more familiar C-style syntax and syntactic sugar, designed to reduce the amount of boilerplate when writing scripting commands in lua.
 
 See [tour.ppga](tour.ppga) for a quick tour.
 
