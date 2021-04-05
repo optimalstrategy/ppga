@@ -478,6 +478,19 @@ end
 local function __PPGA_INTERNAL_UNPACK(...)
     return table.unpack({...})
 end
+local function dump(o)
+    if type(o) == 'table' then
+        local s = ''
+        local count = 0
+        for k,v in pairs(o) do
+            if type(k) ~= 'number' then k = '"'..k..'"' end
+            s = s .. '['..k..'] = ' .. dump(v) .. ', '
+        end
+        return '{ ' .. s .. ' }'
+    else
+       return tostring(o)
+    end
+end
 -- END PPGA STD SYMBOLS
 
 
@@ -513,6 +526,8 @@ print("res: " .. tostring(res))"#;
         let parser = Parser::new(lexer(source));
         let ast = parser.parse().map_err(|e| e.report_all()).unwrap();
         let lua = emit_lua(&ast);
+        println!("{}", expected);
+        println!("{}", lua);
         assert_eq!(expected, lua);
     }
 }

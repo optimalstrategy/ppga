@@ -95,6 +95,12 @@ Block
       kind: VarKind::Local
       name0: empty
       initializer: DictLiteral
+    ExprStmt
+      expr: Call
+        callee: Variable: `print`
+        arg0: Call
+          callee: Variable: `dump`
+          arg0: Variable: `dict`
 FuncDecl
   kind: local
   name: f
@@ -463,8 +469,8 @@ FuncDecl
             statements:
               VarDecl
                 kind: VarKind::Local
-                name0: _ok_L154S3598
-                name1: _err_L154S3598
+                name0: _ok_L157S3675
+                name1: _err_L157S3675
                 initializer: Call
                   callee: Variable: `__PPGA_INTERNAL_HANDLE_ERR`
                   arg0: Variable: `__PPGA_INTERNAL_DFLT_ERR_CB`
@@ -472,17 +478,17 @@ FuncDecl
                     callee: Variable: `may_fail`
               If
                 condition: Binary `!=`
-                  left: GeneratedVariable: `_err_L154S3598`
+                  left: GeneratedVariable: `_err_L157S3675`
                   right: Literal: `nil`
                 then: Block
                   is_standalone: 0
                   statements:
                     Return
                       retval0: Literal: `nil`
-                      retval1: GeneratedVariable: `_err_L154S3598`
+                      retval1: GeneratedVariable: `_err_L157S3675`
                 else:  (none)
               Assignment `=`
-                value: GeneratedVariable: `_ok_L154S3598`
+                value: GeneratedVariable: `_ok_L157S3675`
                 var0: Variable: `ok`
       ExprStmt
         expr: Call
@@ -500,8 +506,8 @@ FuncDecl
             statements:
               VarDecl
                 kind: VarKind::Local
-                name0: _ok_L175S4257
-                name1: _err_L175S4257
+                name0: _ok_L178S4334
+                name1: _err_L178S4334
                 initializer: Call
                   callee: Variable: `__PPGA_INTERNAL_HANDLE_ERR`
                   arg0: Variable: `__PPGA_INTERNAL_DFLT_ERR_CB`
@@ -529,17 +535,17 @@ FuncDecl
                       callee: Variable: `another_fail`
               If
                 condition: Binary `!=`
-                  left: GeneratedVariable: `_err_L175S4257`
+                  left: GeneratedVariable: `_err_L178S4334`
                   right: Literal: `nil`
                 then: Block
                   is_standalone: 0
                   statements:
                     Return
                       retval0: Literal: `nil`
-                      retval1: GeneratedVariable: `_err_L175S4257`
+                      retval1: GeneratedVariable: `_err_L178S4334`
                 else:  (none)
               Assignment `=`
-                value: GeneratedVariable: `_ok_L175S4257`
+                value: GeneratedVariable: `_ok_L178S4334`
                 var0: Variable: `ok`
       Return
         retval0: Variable: `ok`

@@ -26,6 +26,9 @@ global fn h() { }
     // Dicts are similar to lua but don't require the `[]`
     let dict = {1 = 2, 3 = 4};
     let empty = {};
+
+    // You can print table using the dump() function
+    print(dump(dict));
 }
 
 fn f(x) {

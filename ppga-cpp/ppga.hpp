@@ -47,6 +47,8 @@ static constexpr auto ERR_HANDLER_NAME = "__PPGA_INTERNAL_HANDLE_ERR"sv;
 static constexpr auto ERR_CALLBACK_NAME = "__PPGA_INTERNAL_DFLT_ERR_CB"sv;
 /// The name of the unpack helper
 static constexpr auto UNPACK_NAME = "__PPGA_INTERNAL_UNPACK"sv;
+/// The name of the table dump function
+static constexpr auto DUMP_NAME = "dump"sv;
 /// The DEFAULT_OP_NAME definition
 static constexpr auto DEFAULT_OP_DEFN = R"(local function __PPGA_INTERNAL_DEFAULT(x, default)
     if x ~= nil then return (x) end
@@ -70,6 +72,20 @@ static constexpr auto UNPACK_DEFN = R"(if unpack == nil then
 end
 local function __PPGA_INTERNAL_UNPACK(...)
     return table.unpack({...})
+end)"sv;
+/// The DUMP_NAME definition
+static constexpr auto DUMP_DEFN = R"(local function dump(o)
+    if type(o) == 'table' then
+        local s = ''
+        local count = 0
+        for k,v in pairs(o) do
+            if type(k) ~= 'number' then k = '"'..k..'"' end
+            s = s .. '['..k..'] = ' .. dump(v) .. ', '
+        end
+        return '{ ' .. s .. ' }'
+    else
+       return tostring(o)
+    end
 end)"sv;
 }
 
@@ -2786,6 +2802,8 @@ public:
             ss << constants::DEFAULT_OP_DEFN << "\n";
             ss << constants::ERR_HANDLER_DEFN << "\n";
             ss << constants::ERR_CALLBACK_DEFN << "\n";
+            ss << constants::UNPACK_DEFN << "\n";
+            ss << constants::DUMP_DEFN << "\n";
             ss << "-- END PPGA STD SYMBOLS\n\n\n";
         }
         for (const auto& stmt : ast.statements) {
